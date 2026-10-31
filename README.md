@@ -127,6 +127,10 @@ lib/
 linux/ windows/           desktop runners wired to Cargo
 ```
 
+## Roadmap
+
+A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Next up: WhatsMyName database import, email → registered accounts probing, breach intel and an HTML report with the embedded graph.
+
 ## Disclaimer
 
 Anyway is intended for authorized research, security assessments and self-investigations. Respect the terms of service of the platforms it queries and the laws of your jurisdiction.
