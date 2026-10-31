@@ -36,28 +36,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.asset(
-                  'assets/brand/icon-256.png',
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Anyway', style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  Text('One query. Every source. Rust speed.', style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
           if (!state.nativeReady)
             Card(
               color: scheme.errorContainer,

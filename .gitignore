@@ -29,3 +29,6 @@ windows/flutter/ephemeral/
 # Local
 *.log
 .tool-versions
+
+# Golden test failures
+test/failures/

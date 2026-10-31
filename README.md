@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/UI-Material%203%20Expressive-7C6AF0" alt="M3 Expressive"/>
 </p>
 
-**Anyway** is a cross-platform OSINT workstation: a Flutter interface on top of a Rust investigation core. Point it at a username, email, IP address, domain, phone number or an image file — it detects the target type, runs the matching reconnaissance modules concurrently and keeps everything in a case you can export as Markdown or JSON.
+**Anyway** is a cross-platform OSINT workstation: a Flutter interface on top of a Rust investigation core. Point it at a username, email, IP address, domain, phone number or an image file — it detects the target type, runs the matching reconnaissance modules concurrently and keeps everything in a case you can export as Markdown, JSON or a self-contained HTML report.
 
 ## Download
 
@@ -32,6 +32,8 @@ flutter run -d linux   # or: flutter run -d windows
 ```
 
 - **1,100+ sites** checked per username — the merged database combines the curated built-in list (Sherlock and Maigret heritage) with the community-vetted [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) set across social, gaming, coding, dating, forum and art platforms, all with status, message, presence and redirect heuristics plus WAF awareness
+- **Email → linked accounts** — registration, login and password-recovery probes across 20 popular services (GitHub, Discord, Spotify, Twitter/X, Proton, Mail.ru, Firefox, Nike, Pinterest and more), ported from the holehe technique, reveal which accounts hang off an address
+- **Breach intel** — Have I Been Pwned lookup lists every breach that exposed the address with dates, record counts and data classes (bring your own free API key, stored locally in Settings)
 - **Relationship graph** — every scan builds an interactive entity graph: platforms, emails, IPs, domains, providers, organizations, locations and device fingerprints as nodes, linked by what the modules actually proved. Pan, zoom and tap any node to trace its evidence chain
 - **Confidence tagging** — each finding and graph node carries a trust level: **Confirmed** (explicit marker or authoritative API), **Questionable** (status or redirect heuristics) and **Unverified** (detection that failed calibration)
 - **Anti-false-positive calibration** — before trusting a heuristic hit, Anyway re-probes the same platform with a random nonce username; sites that report random names as taken (or serve identical bodies for everyone) are automatically downgraded to Unverified, and WAF-challenged answers never produce findings
@@ -47,6 +49,8 @@ flutter run -d linux   # or: flutter run -d windows
 | `username.enrich` | Username | Official API lookups: GitHub, Reddit, Hacker News, Dev.to, Keybase, Bluesky, Mastodon, Telegram channels, Steam profiles |
 | `search.dorks` | Username, email, IP, domain, phone | Prebuilt deep links: search engines, code hosts, paste sites and intel portals (Shodan, Censys, VirusTotal, crt.sh, Wayback, Truecaller…) |
 | `email.recon` | Email | Syntax + MX validation over DoH, disposable and provider detection, Gravatar avatar & profile resolution |
+| `email.accounts` | Email | Holehe-style registration / login / password-recovery probes across **20 services** that confirm which accounts are linked to the address |
+| `email.breaches` | Email | Have I Been Pwned breach lookup: dates, exposed record counts and data classes per breach (free HIBP API key required) |
 | `ip.intel` | IP | Geo / ASN / ISP flags via ip-api, RDAP registration data with abuse contacts, reverse DNS |
 | `domain.intel` | Domain | RDAP whois, A / AAAA / MX / NS / TXT over DoH, subdomain harvest from crt.sh |
 | `phone.analysis` | Phone | libphonenumber parsing: country, line type, validity, E.164 / international formats |
@@ -129,11 +133,12 @@ linux/ windows/           desktop runners wired to Cargo
 
 ## Roadmap
 
-A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Next up: email → registered accounts probing, breach intel and an HTML report with the embedded graph.
+A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). The first P0 items from that comparison are landed: email → registered accounts probing, breach intel and a self-contained HTML report with the embedded graph.
 
 ## Credits
 
 - [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) by Micah Hoffman (WebBreacher) and the OSINT community — the bundled `wmn-data.json` snapshot (`native/crates/anyway-core/src/modules/`) is distributed unmodified under the [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) license and merged into the username database at build time.
+- [holehe](https://github.com/megadose/holehe) by megadose — registration-probe endpoints adapted for the Email Accounts module.
 - [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) — heritage of curated site entries and detection heuristics.
 
 ## Disclaimer

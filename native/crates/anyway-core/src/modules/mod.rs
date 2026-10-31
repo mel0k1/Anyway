@@ -1,6 +1,8 @@
+pub mod breaches;
 pub mod domain;
 pub mod dorks;
 pub mod email;
+pub mod email_accounts;
 pub mod enrich;
 pub mod exif;
 pub mod ipaddr;
@@ -41,6 +43,8 @@ pub fn registry() -> Vec<Arc<dyn Module>> {
         Arc::new(enrich::EnrichModule),
         Arc::new(dorks::DorksModule),
         Arc::new(email::EmailModule),
+        Arc::new(email_accounts::EmailAccountsModule),
+        Arc::new(breaches::BreachModule),
         Arc::new(ipaddr::IpModule),
         Arc::new(domain::DomainModule),
         Arc::new(phone::PhoneModule),

@@ -37,9 +37,9 @@ Sources: [Sherlock](https://github.com/sherlock-project/sherlock), [Maigret](htt
 P0 — directly competes on core value:
 
 - **Site database depth.** Done in November 2026: the WhatsMyName JSON is imported wholesale — the merged database now spans 1,123 sites with category tags, marker-level detection from WMN entries and host-level deduplication that keeps the strongest heuristic per platform. Remaining gap: Maigret's 3,000+ long tail, reachable through a Maigret-DB importer.
-- **Email → registered accounts.** holehe-style probing via password-recovery/register endpoints (120+ sites, no target alert) is a whole scan vector Anyway lacks. It fits the existing module + confidence architecture perfectly.
-- **Breach data.** No leak/breach lookup at all. Add optional HIBP (API key) and self-hostable DeHashed/HIBP-style integrations; findings should feed the graph as breach nodes.
-- **Report formats.** Maigret ships PDF/HTML. Anyway has Markdown/JSON only — add an HTML report that embeds the graph (Mermaid is already in Markdown export).
+- **Email → registered accounts.** Done in November 2026: the `email.accounts` module ports the holehe technique — registration, login and password-recovery probes across 20 popular services (GitHub, Discord, Spotify, Twitter/X, Proton, Mail.ru, Firefox, Nike, Pinterest, Internet Archive and more) — with per-service response verdicts, evidence strings and confidence tagging that feed the graph as platform nodes.
+- **Breach data.** Done in November 2026: the `email.breaches` module queries the Have I Been Pwned v3 API with a user-supplied free key (stored locally in Settings) and reports every breach with dates, exposed record counts and data classes as Confirmed findings. Remaining gap: self-hostable DeHashed-style integrations and feeding breach names into the graph as dedicated nodes.
+- **Report formats.** Done in November 2026: results export as Markdown, JSON or a self-contained dark-themed HTML report with confidence badges, the entity/edge tables of the relationship graph and the scan log. Remaining gap: PDF rendering and Maigret-style per-platform detail pages.
 
 P1 — differentiating but not blocking:
 

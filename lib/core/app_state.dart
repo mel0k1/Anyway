@@ -21,6 +21,7 @@ class AppState extends ChangeNotifier {
   int timeoutSecs = 12;
   String userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
   String proxy = '';
+  String hibpApiKey = '';
   Set<String> disabledModules = {};
 
   ScanSnapshot? activeScan;
@@ -40,6 +41,7 @@ class AppState extends ChangeNotifier {
     timeoutSecs = prefs.getInt('timeoutSecs') ?? 12;
     userAgent = prefs.getString('userAgent') ?? userAgent;
     proxy = prefs.getString('proxy') ?? '';
+    hibpApiKey = prefs.getString('hibpApiKey') ?? '';
     disabledModules = (prefs.getStringList('disabledModules') ?? []).toSet();
 
     try {
@@ -88,6 +90,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setHibpApiKey(String v) async {
+    hibpApiKey = v.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('hibpApiKey', hibpApiKey);
+    notifyListeners();
+  }
+
   Future<void> toggleModule(String id, bool enabled) async {
     if (enabled) {
       disabledModules.remove(id);
@@ -107,6 +116,7 @@ class AppState extends ChangeNotifier {
       timeoutSecs: timeoutSecs,
       userAgent: userAgent,
       proxy: proxy,
+      hibpApiKey: hibpApiKey,
       modules: enabled,
     );
     activeScan = ScanSnapshot(
@@ -172,6 +182,12 @@ class AppState extends ChangeNotifier {
     final snap = lastSnapshot ?? activeScan;
     if (snap == null) throw StateError('no scan to export');
     return ReportExporter.exportJson(snap, dir);
+  }
+
+  Future<File> exportLastHtml([Directory? dir]) async {
+    final snap = lastSnapshot ?? activeScan;
+    if (snap == null) throw StateError('no scan to export');
+    return ReportExporter.exportHtml(snap, dir);
   }
 
   @override

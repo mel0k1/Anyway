@@ -55,6 +55,7 @@ pub struct ScanOptions {
     pub timeout_secs: u64,
     pub user_agent: String,
     pub proxy: String,
+    pub hibp_api_key: String,
     pub enabled_modules: Vec<String>,
 }
 
@@ -65,6 +66,7 @@ impl Default for ScanOptions {
             timeout_secs: 12,
             user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36".to_string(),
             proxy: String::new(),
+            hibp_api_key: String::new(),
             enabled_modules: Vec::new(),
         }
     }

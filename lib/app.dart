@@ -134,60 +134,47 @@ class _TopBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: scheme.surfaceContainer,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.10),
+            color: scheme.shadow.withValues(alpha: 0.08),
             offset: const Offset(0, 2),
-            blurRadius: 18,
+            blurRadius: 14,
           ),
         ],
       ),
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: 78,
+          height: 64,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 14, 0),
+            padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
             child: Row(
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(12),
                   child: Image.asset(
                     'assets/brand/icon-256.png',
-                    width: 46,
-                    height: 46,
+                    width: 36,
+                    height: 36,
                     fit: BoxFit.cover,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 if (wide)
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Anyway',
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.4,
-                        ),
-                      ),
-                      Text(
-                        'OSINT workstation',
-                        style: textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          letterSpacing: 0.7,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'Anyway',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 const Spacer(),
                 Flexible(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     reverse: true,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -203,7 +190,7 @@ class _TopBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 IconButton(
                   tooltip: dark ? 'Switch to light theme' : 'Switch to dark theme',
                   onPressed: onToggleTheme,
@@ -214,7 +201,7 @@ class _TopBar extends StatelessWidget {
                     child: Icon(
                       dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
                       key: ValueKey(dark),
-                      size: 22,
+                      size: 20,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
@@ -250,19 +237,19 @@ class _NavPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(22),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 420),
           curve: Curves.easeOutBack,
           padding: EdgeInsets.symmetric(
-            horizontal: selected ? 18 : 15,
-            vertical: 13,
+            horizontal: selected ? 16 : 13,
+            vertical: 10,
           ),
           decoration: BoxDecoration(
             color: selected
                 ? scheme.secondaryContainer
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(22),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -274,7 +261,7 @@ class _NavPill extends StatelessWidget {
                 child: Icon(
                   selected ? activeIcon : icon,
                   key: ValueKey(selected),
-                  size: 22,
+                  size: 20,
                   color: selected
                       ? scheme.onSecondaryContainer
                       : scheme.onSurfaceVariant,
@@ -286,12 +273,12 @@ class _NavPill extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: selected
                     ? Padding(
-                        padding: const EdgeInsets.only(left: 9),
+                        padding: const EdgeInsets.only(left: 8),
                         child: Text(
                           label,
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 13.5,
+                            fontSize: 13,
                             color: scheme.onSecondaryContainer,
                           ),
                         ),

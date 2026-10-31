@@ -132,6 +132,45 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         _Section(
+          title: 'Breach lookup',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: TextEditingController(text: state.hibpApiKey),
+                onSubmitted: state.setHibpApiKey,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(
+                  hintText: 'paste your key and press Enter',
+                  labelText: 'Have I Been Pwned API key',
+                  helperText: 'Required by the breach lookup module · free key at haveibeenpwned.com/API/Key',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    state.hibpApiKey.isEmpty ? Icons.key_off : Icons.key,
+                    size: 18,
+                    color: state.hibpApiKey.isEmpty ? scheme.onSurfaceVariant : scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.hibpApiKey.isEmpty
+                          ? 'Breach lookups will be skipped'
+                          : 'Breach intel enabled · key stored on this device',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _Section(
           title: 'Native core',
           child: Row(
             children: [
@@ -151,7 +190,7 @@ class SettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Anyway v0.1.0', style: textTheme.bodyMedium),
+              Text('Anyway v0.2.0', style: textTheme.bodyMedium),
               const SizedBox(height: 4),
               Text('Cross-platform OSINT workstation · GPL-3.0', style: TextStyle(color: scheme.onSurfaceVariant)),
               const SizedBox(height: 12),

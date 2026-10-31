@@ -17,6 +17,8 @@ class ResultsScreen extends StatefulWidget {
   State<ResultsScreen> createState() => _ResultsScreenState();
 }
 
+enum _ExportFormat { markdown, html, json }
+
 class _ResultsScreenState extends State<ResultsScreen> {
   String? _moduleFilter;
   Confidence? _confidenceFilter;
@@ -75,13 +77,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: () => _export(context, json: false),
+                onPressed: () => _export(context, _ExportFormat.markdown),
                 icon: const Icon(Icons.description),
                 label: const Text('Markdown'),
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
-                onPressed: () => _export(context, json: true),
+                onPressed: () => _export(context, _ExportFormat.html),
+                icon: const Icon(Icons.web),
+                label: const Text('HTML'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () => _export(context, _ExportFormat.json),
                 icon: const Icon(Icons.data_object),
                 label: const Text('JSON'),
               ),
@@ -169,12 +177,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Future<void> _export(BuildContext context, {required bool json}) async {
+  Future<void> _export(BuildContext context, _ExportFormat format) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final dirPath = await getDirectoryPath(confirmButtonText: 'Export here');
       final dir = dirPath == null ? null : Directory(dirPath);
-      final file = json ? await widget.state.exportLastJson(dir) : await widget.state.exportLastMarkdown(dir);
+      final file = switch (format) {
+        _ExportFormat.markdown => await widget.state.exportLastMarkdown(dir),
+        _ExportFormat.json => await widget.state.exportLastJson(dir),
+        _ExportFormat.html => await widget.state.exportLastHtml(dir),
+      };
       messenger.showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
