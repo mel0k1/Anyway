@@ -32,7 +32,7 @@ impl Module for UsernameModule {
         &super::ModuleDescriptor {
             id: "username.enumerate",
             name: "Username Enumeration",
-            description: "Probes 700+ social, developer, forum and gaming platforms with marker, status, redirect heuristics and nonce calibration against false positives",
+            description: "Probes 1,100+ social, developer, forum, gaming and dating platforms merged from the built-in and WhatsMyName databases with marker, status, redirect heuristics and nonce calibration against false positives",
             accepts: &[crate::models::TargetKind::Username],
         }
     }
@@ -76,6 +76,14 @@ impl Module for UsernameModule {
                         .await;
                     }
                     let link = profile_url(&site, &username);
+                    let detail = serde_json::json!({
+                        "siteCategory": site.category,
+                        "siteSource": site.source,
+                        "httpStatus": probe.http,
+                        "probeUrl": probe.url,
+                        "signal": signal_name(&site),
+                        "verified": confidence == Confidence::High,
+                    });
                     ctx.emit(Finding {
                         module_id: "username.enumerate".into(),
                         category: "social_profile".into(),
@@ -84,13 +92,7 @@ impl Module for UsernameModule {
                         url: Some(link),
                         confidence,
                         target: None,
-                        detail: Some(serde_json::json!({
-                            "siteCategory": site.category,
-                            "httpStatus": probe.http,
-                            "probeUrl": probe.url,
-                            "signal": signal_name(&site),
-                            "verified": confidence == Confidence::High,
-                        })),
+                        detail: Some(detail),
                     })
                     .await;
                 }
@@ -103,8 +105,16 @@ impl Module for UsernameModule {
     }
 }
 
+pub fn sanitize(site: &Site, username: &str) -> String {
+    if site.strip.is_empty() {
+        username.to_string()
+    } else {
+        username.replace(&site.strip, "")
+    }
+}
+
 fn profile_url(site: &Site, username: &str) -> String {
-    site.url.replace("{}", username)
+    site.url.replace("{}", &sanitize(site, username))
 }
 
 fn fill(pattern: &str, username: &str) -> String {
@@ -259,7 +269,8 @@ async fn probe(client: &reqwest::Client, site: &Site, username: &str) -> ProbeRe
     } else {
         &site.probe
     };
-    let url = fill(target_url, username);
+    let account = sanitize(site, username);
+    let url = fill(target_url, &account);
 
     let mut request = match site.post {
         true => client
@@ -272,7 +283,7 @@ async fn probe(client: &reqwest::Client, site: &Site, username: &str) -> ProbeRe
                     .map(|(_, v)| v.clone())
                     .unwrap_or_else(|| "application/json".into()),
             )
-            .body(fill(&site.body, username)),
+            .body(fill(&site.body, &account)),
         false => client.get(&url),
     };
     for (k, v) in &site.headers {
@@ -383,6 +394,8 @@ mod tests {
             },
             regex: None,
             unknown_codes: vec![403, 429, 503],
+            strip: String::new(),
+            source: "test".into(),
         }
     }
 
@@ -440,6 +453,16 @@ mod tests {
         assert!(a.starts_with("nx"));
         assert!(a.chars().skip(2).all(|c| c.is_ascii_hexdigit()));
         assert!(a.len() > 20);
+    }
+
+    #[test]
+    fn sanitize_strips_bad_chars() {
+        let mut site = message_site(vec![], vec![]);
+        site.strip = ".".into();
+        assert_eq!(sanitize(&site, "jane.doe"), "janedoe");
+        site.strip = String::new();
+        assert_eq!(sanitize(&site, "jane.doe"), "jane.doe");
+        assert_eq!(profile_url(&site, "jane"), "https://test.example/jane");
     }
 
     #[test]

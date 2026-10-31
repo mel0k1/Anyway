@@ -9,6 +9,7 @@ void main() {
     expect(detectTargetKind('user@example.org'), TargetKind.email);
     expect(detectTargetKind('8.8.8.8'), TargetKind.ipAddress);
     expect(detectTargetKind('example.org'), TargetKind.domain);
+    expect(detectTargetKind('jane.doe.1990'), TargetKind.username);
     expect(detectTargetKind('+79261234567'), TargetKind.phoneNumber);
     expect(detectTargetKind(''), TargetKind.unknown);
   });
@@ -99,9 +100,9 @@ void main() {
       'name': 'Username Enumeration',
       'description': 'Probes sites',
       'accepts': ['username'],
-      'sites': 706,
+      'sites': 1123,
     });
-    expect(m.sites, 706);
+    expect(m.sites, 1123);
     final plain = ModuleInfo.fromJson({
       'id': 'ip.intel',
       'name': 'IP Intelligence',

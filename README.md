@@ -31,7 +31,7 @@ Every release is built straight from a version tag by CI, ships a `checksums.txt
 flutter run -d linux   # or: flutter run -d windows
 ```
 
-- **700+ sites** checked per username — the database merges curated entries from the [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) projects with status, message, presence and redirect heuristics plus WAF awareness
+- **1,100+ sites** checked per username — the merged database combines the curated built-in list (Sherlock and Maigret heritage) with the community-vetted [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) set across social, gaming, coding, dating, forum and art platforms, all with status, message, presence and redirect heuristics plus WAF awareness
 - **Relationship graph** — every scan builds an interactive entity graph: platforms, emails, IPs, domains, providers, organizations, locations and device fingerprints as nodes, linked by what the modules actually proved. Pan, zoom and tap any node to trace its evidence chain
 - **Confidence tagging** — each finding and graph node carries a trust level: **Confirmed** (explicit marker or authoritative API), **Questionable** (status or redirect heuristics) and **Unverified** (detection that failed calibration)
 - **Anti-false-positive calibration** — before trusting a heuristic hit, Anyway re-probes the same platform with a random nonce username; sites that report random names as taken (or serve identical bodies for everyone) are automatically downgraded to Unverified, and WAF-challenged answers never produce findings
@@ -43,7 +43,7 @@ flutter run -d linux   # or: flutter run -d windows
 
 | Module | Target | What it does |
 | --- | --- | --- |
-| `username.enumerate` | Username | Probes **706 platforms** with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness |
+| `username.enumerate` | Username | Probes **1,123 platforms** (built-in + WhatsMyName) with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness |
 | `username.enrich` | Username | Official API lookups: GitHub, Reddit, Hacker News, Dev.to, Keybase, Bluesky, Mastodon, Telegram channels, Steam profiles |
 | `search.dorks` | Username, email, IP, domain, phone | Prebuilt deep links: search engines, code hosts, paste sites and intel portals (Shodan, Censys, VirusTotal, crt.sh, Wayback, Truecaller…) |
 | `email.recon` | Email | Syntax + MX validation over DoH, disposable and provider detection, Gravatar avatar & profile resolution |
@@ -62,7 +62,7 @@ flutter run -d linux   # or: flutter run -d windows
 | **Modules** | **Settings and proxy** |
 | ![Modules](docs/screenshots/06_modules.png) | ![Settings](docs/screenshots/07_settings.png) |
 
-Dark-first Material 3 Expressive: a navigation rail shell, wavy progress indicators per module, spring-driven motion and tonal surfaces. The screenshots are rendered deterministically from demo data by `flutter test test/screenshots_test.dart --update-goldens`.
+Dark-first Material 3 Expressive: a top navigation shell with soft rounded corners, wavy progress indicators per module, spring-driven motion and tonal surfaces. The screenshots are rendered deterministically from demo data by `flutter test test/screenshots_test.dart --update-goldens`.
 
 ## Architecture
 
@@ -129,7 +129,12 @@ linux/ windows/           desktop runners wired to Cargo
 
 ## Roadmap
 
-A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Next up: WhatsMyName database import, email → registered accounts probing, breach intel and an HTML report with the embedded graph.
+A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Next up: email → registered accounts probing, breach intel and an HTML report with the embedded graph.
+
+## Credits
+
+- [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) by Micah Hoffman (WebBreacher) and the OSINT community — the bundled `wmn-data.json` snapshot (`native/crates/anyway-core/src/modules/`) is distributed unmodified under the [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) license and merged into the username database at build time.
+- [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) — heritage of curated site entries and detection heuristics.
 
 ## Disclaimer
 

@@ -11,7 +11,7 @@ Anyway is a desktop OSINT workstation, not a CLI or a SaaS panel. Its differenti
 | | Anyway | Sherlock | Maigret | Blackbird | holehe | theHarvester | SpiderFoot | Maltego |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Type | Desktop GUI + Rust core | CLI | CLI | CLI | CLI | CLI | Web UI / CLI automation | Commercial link-analysis suite |
-| Username → accounts | 706 sites | 400+ sites | 3,000+ sites (top 500 default) | 600+ sites (WhatsMyName) | – | – | via modules | via transforms |
+| Username → accounts | 1,123 sites (built-in + WhatsMyName) | 400+ sites | 3,000+ sites (top 500 default) | 600+ sites (WhatsMyName) | – | – | via modules | via transforms |
 | Email → accounts | Gravatar + provider intel only | – | partial | yes, same 600+ list | 120+ via password-recovery | – | via modules | via transforms |
 | Email/domain/IP passive recon | yes (MX, RDAP, DoH DNS, crt.sh, ip-api) | – | – | – | – | 38+ passive sources | 200+ modules | 100+ connectors |
 | Relationship graph | built from every scan, interactive | no | no | no | no | no | built-in for some modules | the whole product |
@@ -20,7 +20,7 @@ Anyway is a desktop OSINT workstation, not a CLI or a SaaS panel. Its differenti
 | Export | Markdown, JSON, cases on disk | txt/json | txt, CSV, PDF, HTML, xmind | JSON, CSV, PDF | json | csv/json/xml | CSV, web report | graph exports, reports |
 | Proxy / Tor | http(s), socks5, socks5h, hard-fail on bad proxy | socks4/5, tor | proxy support | proxy support | proxy support | proxy | proxy | via system |
 | Automation / scheduling | no | no | no | no | no | no | yes (scheduled scans) | machines |
-| Extensibility | module registry in Rust, site JSON | site YAML | site JSON, tags | site list | python modules | python sources | 200+ python modules | transform hub / SDK |
+| Extensibility | module registry in Rust, site JSON + bundled WhatsMyName snapshot | site YAML | site JSON, tags | site list | python modules | python sources | 200+ python modules | transform hub / SDK |
 | Price | free, GPL-3.0 | free MIT | free MIT | free MIT | free GPL | free GPL | free / commercial cloud | CE free (24 results/transform), paid tiers €3k+/yr |
 
 Sources: [Sherlock](https://github.com/sherlock-project/sherlock), [Maigret](https://github.com/soxoj/maigret), [Blackbird](https://github.com/p1ngul1n0/blackbird), [holehe](https://github.com/megadose/holehe), [theHarvester](https://github.com/laramies/theHarvester), [SpiderFoot](https://github.com/smicallef/spiderfoot), [Maltego CE limits](https://osint-s.com/tools/maltego).
@@ -36,7 +36,7 @@ Sources: [Sherlock](https://github.com/sherlock-project/sherlock), [Maigret](htt
 
 P0 — directly competes on core value:
 
-- **Site database depth.** 706 vs Maigret's 3,000+ and Blackbird's WhatsMyName 600+. Import the WhatsMyName JSON wholesale and add a Maigret-DB importer with per-site confidence metadata and tags (dating, gaming, region).
+- **Site database depth.** Done in November 2026: the WhatsMyName JSON is imported wholesale — the merged database now spans 1,123 sites with category tags, marker-level detection from WMN entries and host-level deduplication that keeps the strongest heuristic per platform. Remaining gap: Maigret's 3,000+ long tail, reachable through a Maigret-DB importer.
 - **Email → registered accounts.** holehe-style probing via password-recovery/register endpoints (120+ sites, no target alert) is a whole scan vector Anyway lacks. It fits the existing module + confidence architecture perfectly.
 - **Breach data.** No leak/breach lookup at all. Add optional HIBP (API key) and self-hostable DeHashed/HIBP-style integrations; findings should feed the graph as breach nodes.
 - **Report formats.** Maigret ships PDF/HTML. Anyway has Markdown/JSON only — add an HTML report that embeds the graph (Mermaid is already in Markdown export).
