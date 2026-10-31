@@ -52,7 +52,6 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
-# Rust core.
 find_program(CARGO_EXECUTABLE cargo REQUIRED)
 set(NATIVE_MANIFEST "${CMAKE_SOURCE_DIR}/../native/crates/anyway-ffi/Cargo.toml")
 set(NATIVE_LIBRARY "${CMAKE_SOURCE_DIR}/../native/target/release/anyway_ffi.dll")

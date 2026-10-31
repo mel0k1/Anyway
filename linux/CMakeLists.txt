@@ -57,7 +57,6 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
-# Rust core.
 find_program(CARGO_EXECUTABLE cargo REQUIRED)
 set(NATIVE_MANIFEST "${CMAKE_SOURCE_DIR}/../native/crates/anyway-ffi/Cargo.toml")
 set(NATIVE_LIBRARY "${CMAKE_SOURCE_DIR}/../native/target/release/libanyway_ffi.so")

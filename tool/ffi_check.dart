@@ -1,6 +1,5 @@
 import 'dart:async';
 
-// ignore_for_file: avoid_print
 import 'package:anyway/core/models.dart';
 import 'package:anyway/core/rust_core.dart';
 
