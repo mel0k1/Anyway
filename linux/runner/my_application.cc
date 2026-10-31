@@ -19,11 +19,29 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// Loads the bundled brand icon so the window shows the Anyway spider.
+static void load_window_icon(GtkWindow* window) {
+  gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe_path == nullptr) {
+    return;
+  }
+  gchar* exe_dir = g_path_get_dirname(exe_path);
+  gchar* icon_path = g_build_filename(exe_dir, "data", "flutter_assets",
+                                      "assets", "brand", "icon-256.png",
+                                      nullptr);
+  gtk_window_set_default_icon_from_file(icon_path, nullptr);
+  g_free(icon_path);
+  g_free(exe_dir);
+  g_free(exe_path);
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+
+  load_window_icon(window);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
