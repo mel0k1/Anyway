@@ -75,7 +75,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            anyway-linux-x64.tar.gz
-            anyway-windows-x64.zip
-            checksums.txt
+            dist/anyway-linux-x64.tar.gz
+            dist/anyway-windows-x64.zip
+            dist/checksums.txt
+          fail_on_unmatched_files: true
           generate_release_notes: true
