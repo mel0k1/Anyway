@@ -7,6 +7,7 @@
 <h3 align="center">One query. Every source. Rust speed.</h3>
 
 <p align="center">
+  <a href="https://github.com/mel0k1/Anyway/actions/workflows/ci.yml"><img src="https://github.com/mel0k1/Anyway/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Flutter-3.35%2B-02569B?logo=flutter&logoColor=white" alt="Flutter"/>
   <img src="https://img.shields.io/badge/Rust-1.85%2B-DEA584?logo=rust&logoColor=white" alt="Rust"/>
@@ -16,12 +17,18 @@
 
 **Anyway** is a cross-platform OSINT workstation: a Flutter interface on top of a Rust investigation core. Point it at a username, email, IP address, domain, phone number or an image file — it detects the target type, runs the matching reconnaissance modules concurrently and keeps everything in a case you can export as Markdown or JSON.
 
+- **700+ sites** checked per username — the database merges curated entries from the [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) projects with status, message, presence and redirect heuristics plus WAF awareness
+- **Multiple targets in one scan** — separate them with commas: `user1, user2, example.org`
+- **Proxy & Tor** — route every request through `http`, `https`, `socks5` or `socks5h` (one click for a local Tor daemon), with a hard fail instead of a silent fallback if the proxy is invalid
+- **Search dorks** — every scan ends with one-click deep links for Google, Bing, DuckDuckGo, Yandex, GitHub, Pastebin, Shodan, Censys, VirusTotal, Wayback and more, preloaded with the target
+
 ## Modules
 
 | Module | Target | What it does |
 | --- | --- | --- |
-| `username.enumerate` | Username | Probes 36 social and developer platforms with status / message / POST-probe heuristics and WAF awareness |
-| `username.enrich` | Username | Official API lookups: GitHub, Reddit, Hacker News, Dev.to, Keybase |
+| `username.enumerate` | Username | Probes **706 platforms** with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness |
+| `username.enrich` | Username | Official API lookups: GitHub, Reddit, Hacker News, Dev.to, Keybase, Bluesky, Mastodon, Telegram channels, Steam profiles |
+| `search.dorks` | Username, email, IP, domain, phone | Prebuilt deep links: search engines, code hosts, paste sites and intel portals (Shodan, Censys, VirusTotal, crt.sh, Wayback, Truecaller…) |
 | `email.recon` | Email | Syntax + MX validation over DoH, disposable and provider detection, Gravatar avatar & profile resolution |
 | `ip.intel` | IP | Geo / ASN / ISP flags via ip-api, RDAP registration data with abuse contacts, reverse DNS |
 | `domain.intel` | Domain | RDAP whois, A / AAAA / MX / NS / TXT over DoH, subdomain harvest from crt.sh |
@@ -52,6 +59,16 @@ The interface is dark-first Material 3 Expressive: a navigation rail shell, wavy
 - The FFI surface is a small C ABI (`anyway_scan_start` / `anyway_scan_poll` / `anyway_scan_cancel`) speaking JSON — no codegen, no magic.
 - CMake invokes Cargo during the Flutter build, so `flutter run -d linux` builds the native core automatically.
 - Every finished scan is archived as a case under the app support directory.
+
+## Network & privacy
+
+Scans run from your machine and hit the same endpoints a browser would. To keep your own IP out of other people's logs, open **Settings → Network** and pick a proxy:
+
+- `socks5h://127.0.0.1:9050` — a local Tor daemon (DNS resolves remotely through the circuit)
+- `socks5h://127.0.0.1:9150` — the SOCKS port of the Tor Browser bundle
+- any `http://`, `https://` or `socks5://` endpoint, including authenticated ones: `socks5://user:pass@host:port`
+
+The active route is shown on the scan screen. If the proxy URL is invalid, the scan fails immediately with a log entry — Anyway never silently falls back to a direct connection.
 
 ## Getting started
 
