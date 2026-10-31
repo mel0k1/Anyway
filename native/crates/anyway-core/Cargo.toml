@@ -1,0 +1,20 @@
+[package]
+name = "anyway-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+regex.workspace = true
+rand.workspace = true
+md-5 = "0.10"
+phonenumber = "0.3"
+kamadak-exif = "0.6"
+tokio-util = "0.7"
+async-trait = "0.1"

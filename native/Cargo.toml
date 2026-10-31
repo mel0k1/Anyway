@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["crates/anyway-core", "crates/anyway-ffi"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures = "0.3"
+thiserror = "2"
+regex = "1"
+rand = "0.9"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
