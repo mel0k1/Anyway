@@ -1,0 +1,172 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'case_store.dart';
+import 'models.dart';
+import 'report_exporter.dart';
+import 'rust_core.dart';
+
+class AppState extends ChangeNotifier {
+  final CaseStore cases = CaseStore();
+
+  List<ModuleInfo> modules = [];
+  bool nativeReady = false;
+  String nativeError = '';
+
+  bool _darkTheme = true;
+  int concurrency = 24;
+  int timeoutSecs = 12;
+  String userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  Set<String> disabledModules = {};
+
+  ScanSnapshot? activeScan;
+  ScanSnapshot? lastSnapshot;
+  Timer? _pollTimer;
+  List<CaseMeta> caseList = [];
+
+  bool get darkTheme => _darkTheme;
+
+  List<ModuleInfo> modulesFor(TargetKind kind) =>
+      modules.where((m) => m.accepts.contains(kind) && !disabledModules.contains(m.id)).toList();
+
+  Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _darkTheme = prefs.getBool('darkTheme') ?? true;
+    concurrency = prefs.getInt('concurrency') ?? 24;
+    timeoutSecs = prefs.getInt('timeoutSecs') ?? 12;
+    userAgent = prefs.getString('userAgent') ?? userAgent;
+    disabledModules = (prefs.getStringList('disabledModules') ?? []).toSet();
+
+    try {
+      modules = RustCore.moduleList();
+      nativeReady = true;
+    } catch (e) {
+      nativeReady = false;
+      nativeError = '$e';
+    }
+    caseList = await cases.list();
+    notifyListeners();
+  }
+
+  Future<void> setDarkTheme(bool v) async {
+    _darkTheme = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('darkTheme', v);
+    notifyListeners();
+  }
+
+  Future<void> setConcurrency(int v) async {
+    concurrency = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('concurrency', v);
+    notifyListeners();
+  }
+
+  Future<void> setTimeoutSecs(int v) async {
+    timeoutSecs = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('timeoutSecs', v);
+    notifyListeners();
+  }
+
+  Future<void> setUserAgent(String v) async {
+    userAgent = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userAgent', v);
+    notifyListeners();
+  }
+
+  Future<void> toggleModule(String id, bool enabled) async {
+    if (enabled) {
+      disabledModules.remove(id);
+    } else {
+      disabledModules.add(id);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('disabledModules', disabledModules.toList());
+    notifyListeners();
+  }
+
+  void startScan(String query) {
+    final enabled = modules.where((m) => !disabledModules.contains(m.id)).map((m) => m.id).toList();
+    final scanId = RustCore.scanStart(
+      query,
+      concurrency: concurrency,
+      timeoutSecs: timeoutSecs,
+      userAgent: userAgent,
+      modules: enabled,
+    );
+    activeScan = ScanSnapshot(
+      scanId: scanId,
+      target: Target(kind: detectTargetKind(query), raw: query, normalized: query.trim().toLowerCase()),
+      status: 'running',
+      startedAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      modules: const [],
+      findings: const [],
+      log: const [],
+    );
+    notifyListeners();
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) => _poll());
+    _poll();
+  }
+
+  Future<void> _poll() async {
+    final id = activeScan?.scanId;
+    if (id == null) return;
+    final snap = RustCore.scanPoll(id);
+    if (snap == null) return;
+    activeScan = snap;
+    if (!snap.running) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+      lastSnapshot = snap;
+      try {
+        await cases.save(snap);
+        caseList = await cases.list();
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  Future<void> cancelScan() async {
+    final id = activeScan?.scanId;
+    if (id == null) return;
+    RustCore.scanCancel(id);
+  }
+
+  Future<void> openCase(CaseMeta meta) async {
+    final snap = await cases.load(meta.id);
+    if (snap != null) {
+      lastSnapshot = snap;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteCase(CaseMeta meta) async {
+    await cases.delete(meta.id);
+    caseList = await cases.list();
+    notifyListeners();
+  }
+
+  Future<File> exportLastMarkdown([Directory? dir]) async {
+    final snap = lastSnapshot ?? activeScan;
+    if (snap == null) throw StateError('no scan to export');
+    return ReportExporter.exportMarkdown(snap, dir);
+  }
+
+  Future<File> exportLastJson([Directory? dir]) async {
+    final snap = lastSnapshot ?? activeScan;
+    if (snap == null) throw StateError('no scan to export');
+    return ReportExporter.exportJson(snap, dir);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+}
