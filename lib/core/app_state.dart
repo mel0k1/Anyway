@@ -9,6 +9,8 @@ import 'models.dart';
 import 'report_exporter.dart';
 import 'rust_core.dart';
 
+enum CategoryState { neutral, allowed, blocked }
+
 class AppState extends ChangeNotifier {
   final CaseStore cases = CaseStore();
 
@@ -27,6 +29,11 @@ class AppState extends ChangeNotifier {
   int pivotDepth = 2;
   int pivotBudget = 8;
   bool longTail = false;
+  bool browserChecks = false;
+  Set<String> allowedCategories = {};
+  Set<String> blockedCategories = {};
+  List<CategoryInfo> categories = [];
+  String? detectedBrowser;
 
   ScanSnapshot? activeScan;
   ScanSnapshot? lastSnapshot;
@@ -51,9 +58,14 @@ class AppState extends ChangeNotifier {
     pivotDepth = prefs.getInt('pivotDepth') ?? 2;
     pivotBudget = prefs.getInt('pivotBudget') ?? 8;
     longTail = prefs.getBool('longTail') ?? false;
+    browserChecks = prefs.getBool('browserChecks') ?? false;
+    allowedCategories = (prefs.getStringList('allowedCategories') ?? []).toSet();
+    blockedCategories = (prefs.getStringList('blockedCategories') ?? []).toSet();
 
     try {
       modules = RustCore.moduleList();
+      categories = RustCore.categoryList();
+      detectedBrowser = RustCore.detectBrowser();
       nativeReady = true;
     } catch (e) {
       nativeReady = false;
@@ -144,6 +156,45 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setBrowserChecks(bool v) async {
+    browserChecks = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('browserChecks', v);
+    notifyListeners();
+  }
+
+  Future<void> setCategoryState(String name, CategoryState state) async {
+    allowedCategories.remove(name);
+    blockedCategories.remove(name);
+    if (state == CategoryState.allowed) {
+      allowedCategories.add(name);
+    } else if (state == CategoryState.blocked) {
+      blockedCategories.add(name);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('allowedCategories', allowedCategories.toList());
+    await prefs.setStringList('blockedCategories', blockedCategories.toList());
+    notifyListeners();
+  }
+
+  CategoryState categoryState(String name) {
+    if (allowedCategories.contains(name)) return CategoryState.allowed;
+    if (blockedCategories.contains(name)) return CategoryState.blocked;
+    return CategoryState.neutral;
+  }
+
+  void resetCategories() {
+    allowedCategories.clear();
+    blockedCategories.clear();
+    () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('allowedCategories', []);
+      await prefs.setStringList('blockedCategories', []);
+      notifyListeners();
+    }();
+    notifyListeners();
+  }
+
   void startScan(String query) {
     final enabled = modules.where((m) => !disabledModules.contains(m.id)).map((m) => m.id).toList();
     final scanId = RustCore.scanStart(
@@ -158,6 +209,9 @@ class AppState extends ChangeNotifier {
       pivotDepth: pivotDepth,
       pivotBudget: pivotBudget,
       longTail: longTail,
+      browserChecks: browserChecks,
+      allowedCategories: allowedCategories.toList(),
+      blockedCategories: blockedCategories.toList(),
     );
     activeScan = ScanSnapshot(
       scanId: scanId,

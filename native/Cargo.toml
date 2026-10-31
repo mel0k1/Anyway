@@ -8,7 +8,7 @@ edition = "2021"
 license = "GPL-3.0"
 
 [workspace.dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util", "process"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "json", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -6,6 +6,7 @@ const MAX_SUBDOMAIN_NODES: usize = 48;
 const MAX_RESOLVE_NODES: usize = 16;
 const MAX_NS_NODES: usize = 4;
 const MAX_MX_NODES: usize = 6;
+const MAX_SOCIAL_NODES: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -556,6 +557,31 @@ fn apply_finding(b: &mut Builder, f: &Finding) {
             );
             b.edge(&root, &id, "search_lead", Confidence::Medium, via);
         }
+        "social_connection" => {
+            let direction = detail_str(&detail, "direction").unwrap_or_default();
+            let logins = detail_list(&detail, "logins");
+            for login in logins.iter().take(MAX_SOCIAL_NODES) {
+                let handle = login.trim().trim_start_matches('@').to_lowercase();
+                if handle.is_empty() || handle.len() > 64 {
+                    continue;
+                }
+                let id = entity_id(NodeKind::Username, &handle);
+                b.node(
+                    &id,
+                    NodeKind::Username,
+                    handle,
+                    Confidence::High,
+                    via,
+                    false,
+                );
+                let relation = if direction == "following" {
+                    "follows"
+                } else {
+                    "followed_by"
+                };
+                b.edge(&root, &id, relation, Confidence::High, via);
+            }
+        }
         "email_info" => match f.label.as_str() {
             "Local part" => {
                 extract_username_entity(
@@ -923,6 +949,55 @@ mod tests {
         assert_eq!(edge.from, "Username:mel0k1");
         assert_eq!(edge.to, "Email:jane@corp.io");
         assert_eq!(edge.via, "enrich.api");
+    }
+
+    #[test]
+    fn social_connections_link_followers_and_following() {
+        let targets = vec![target(TargetKind::Username, "mel0k1")];
+        let mut f = finding(
+            "social_connection",
+            "GitHub followers",
+            "12 accounts",
+            Confidence::High,
+        );
+        f.detail = Some(serde_json::json!({
+            "platform": "github",
+            "direction": "followers",
+            "logins": ["alice", "@Bob", "", "carol"],
+        }));
+        let mut f2 = finding(
+            "social_connection",
+            "GitHub following",
+            "1 accounts",
+            Confidence::High,
+        );
+        f2.detail = Some(serde_json::json!({
+            "platform": "github",
+            "direction": "following",
+            "logins": ["dave"],
+        }));
+        let g = build_graph(&targets, &[f, f2]);
+        for handle in ["alice", "bob", "carol", "dave"] {
+            let node = g
+                .nodes
+                .iter()
+                .find(|n| n.id == format!("Username:{handle}"))
+                .unwrap_or_else(|| panic!("missing node {handle}"));
+            assert_eq!(node.confidence, Confidence::High);
+        }
+        assert!(g
+            .edges
+            .iter()
+            .any(|e| e.relation == "followed_by" && e.to == "Username:alice"));
+        assert!(g
+            .edges
+            .iter()
+            .any(|e| e.relation == "followed_by" && e.to == "Username:bob"));
+        assert!(g
+            .edges
+            .iter()
+            .any(|e| e.relation == "follows" && e.to == "Username:dave"));
+        assert!(!g.edges.iter().any(|e| e.to == "Username:"));
     }
 
     #[test]

@@ -38,6 +38,9 @@ flutter run -d linux   # or: flutter run -d windows
 - **Relationship graph** — every scan builds an interactive entity graph: platforms, emails, IPs, domains, providers, organizations, locations and device fingerprints as nodes, linked by what the modules actually proved. Pan, zoom and tap any node to trace its evidence chain
 - **Confidence tagging** — each finding and graph node carries a trust level: **Confirmed** (explicit marker or authoritative API), **Questionable** (status or redirect heuristics) and **Unverified** (detection that failed calibration)
 - **Anti-false-positive calibration** — before trusting a heuristic hit, Anyway re-probes the same platform with a random nonce username; sites that report random names as taken (or serve identical bodies for everyone) are automatically downgraded to Unverified, and WAF-challenged answers never produce findings
+- **Headless browser verification** — sites that answer behind bot walls or render their profile page in JavaScript are re-checked through a real Chromium-family browser found on the system (Chrome, Edge, Chromium, Brave) and confirmed from the rendered DOM, with a per-scan cap so the pass stays fast
+- **Category filters** — every site carries a category tag; in Settings each category can be set to include-only or excluded (Maigret `--tags` style) and the username module adapts its probe list per scan
+- **Social graph enrichment** — the new `social.graph` module pulls public GitHub follower and follow lists and links every account into the relationship graph as a Confirmed connection
 - **Multiple targets in one scan** — separate them with commas: `user1, user2, example.org`
 - **Proxy & Tor** — route every request through `http`, `https`, `socks5` or `socks5h` (one click for a local Tor daemon), with a hard fail instead of a silent fallback if the proxy is invalid
 - **Search dorks** — every scan ends with one-click deep links for Google, Bing, DuckDuckGo, Yandex, GitHub, Pastebin, Shodan, Censys, VirusTotal, Wayback and more, preloaded with the target
@@ -46,8 +49,9 @@ flutter run -d linux   # or: flutter run -d windows
 
 | Module | Target | What it does |
 | --- | --- | --- |
-| `username.enumerate` | Username | Probes the merged platform database — **1,100+ core sites, 7,900+ with the Maigret long tail** — with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness |
+| `username.enumerate` | Username | Probes the merged platform database — **1,100+ core sites, 7,900+ with the Maigret long tail** — with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness, category filters and an optional headless-browser re-check of ambiguous sites |
 | `username.enrich` | Username | Official API lookups: GitHub, Reddit, Hacker News, Dev.to, Keybase, Bluesky, Mastodon, Telegram channels, Steam profiles |
+| `social.graph` | Username | Public follower / follow lists from the GitHub API, rendered into the graph as Confirmed → connection edges |
 | `search.dorks` | Username, email, IP, domain, phone | Prebuilt deep links: search engines, code hosts, paste sites and intel portals (Shodan, Censys, VirusTotal, crt.sh, Wayback, Truecaller…) |
 | `email.recon` | Email | Syntax + MX validation over DoH, disposable and provider detection, Gravatar avatar & profile resolution |
 | `email.accounts` | Email | Holehe-style registration / login / password-recovery probes across **20 services** that confirm which accounts are linked to the address |

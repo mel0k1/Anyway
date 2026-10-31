@@ -270,6 +270,18 @@ class Finding {
       };
 }
 
+class CategoryInfo {
+  final String name;
+  final int count;
+
+  const CategoryInfo({required this.name, required this.count});
+
+  factory CategoryInfo.fromJson(Map<String, dynamic> j) => CategoryInfo(
+        name: j['name'] as String? ?? '',
+        count: (j['count'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class ModuleInfo {
   final String id;
   final String name;

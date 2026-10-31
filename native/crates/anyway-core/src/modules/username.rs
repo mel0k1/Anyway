@@ -5,7 +5,9 @@ use crate::error::CoreError;
 use crate::models::{Confidence, Finding};
 use futures::stream::{self, StreamExt};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+pub const BROWSER_PASS_MAX: usize = 40;
 
 pub struct UsernameModule;
 
@@ -41,18 +43,23 @@ impl Module for UsernameModule {
         let username = ctx.target.normalized.clone();
         let conc = ctx.options.concurrency.clamp(4, 64) as usize;
         let long_tail = ctx.options.long_tail;
+        let allowed = ctx.options.allowed_categories.clone();
+        let blocked = ctx.options.blocked_categories.clone();
         let all: Vec<Site> = sites()
             .iter()
             .filter(|s| long_tail || s.source != "maigret")
+            .filter(|s| category_visible(&s.category, &allowed, &blocked))
             .cloned()
             .collect();
         let total = all.len();
         let done = Arc::new(AtomicUsize::new(0));
         let client = Arc::new(ctx.client.clone());
+        let ambiguous: Arc<Mutex<Vec<Site>>> = Arc::new(Mutex::new(Vec::new()));
 
         ctx.note(&format!(
-            "probing {total} sites{}",
-            if long_tail { " (long tail)" } else { " (core)" }
+            "probing {total} sites{}{}",
+            if long_tail { " (long tail)" } else { " (core)" },
+            category_note(&allowed, &blocked)
         ))
         .await;
 
@@ -62,6 +69,7 @@ impl Module for UsernameModule {
                 let username = username.clone();
                 let done = done.clone();
                 let ctx = ctx.clone();
+                let ambiguous = ambiguous.clone();
                 async move {
                     if ctx.cancelled() {
                         return;
@@ -70,6 +78,19 @@ impl Module for UsernameModule {
                     let i = done.fetch_add(1, Ordering::Relaxed) + 1;
                     if i.is_multiple_of(25) {
                         ctx.progress(i as u64, total as u64).await;
+                    }
+                    if ctx.options.browser_checks
+                        && matches!(probe.status, SiteStatus::Unknown | SiteStatus::Waf)
+                        && matches!(
+                            site.kind,
+                            DetectKind::Message { .. } | DetectKind::Redirect { .. }
+                        )
+                    {
+                        if let Ok(mut slot) = ambiguous.lock() {
+                            if slot.len() < BROWSER_PASS_MAX {
+                                slot.push(site.clone());
+                            }
+                        }
                     }
                     if probe.status != SiteStatus::Claimed {
                         return;
@@ -110,7 +131,113 @@ impl Module for UsernameModule {
             .count()
             .await;
         ctx.progress(total as u64, total as u64).await;
+
+        if ctx.cancelled() || !ctx.options.browser_checks {
+            return Ok(());
+        }
+        let pending: Vec<Site> = std::mem::take(
+            &mut *ambiguous
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let Some(browser) = crate::browser::find_browser() else {
+            ctx.note(&format!(
+                "browser verification skipped: no Chromium-family browser found for {} ambiguous sites",
+                pending.len()
+            ))
+            .await;
+            return Ok(());
+        };
+        ctx.note(&format!(
+            "browser verification pass: {} ambiguous sites via {}",
+            pending.len(),
+            browser.display()
+        ))
+        .await;
+        let timeout = std::time::Duration::from_secs(ctx.options.timeout_secs.max(15));
+        for (i, site) in pending.iter().enumerate() {
+            if ctx.cancelled() {
+                break;
+            }
+            let account = sanitize(site, &username);
+            let target_url = if site.probe.is_empty() {
+                site.url.clone()
+            } else {
+                site.probe.clone()
+            };
+            let url = target_url.replace("{}", &account);
+            let dom = match crate::browser::render_dom(&browser, &url, timeout).await {
+                Ok(dom) => dom,
+                Err(e) => {
+                    ctx.note(&format!("{}: browser render failed ({e})", site.name))
+                        .await;
+                    continue;
+                }
+            };
+            if looks_like_waf(&dom) {
+                ctx.note(&format!(
+                    "{}: browser render also behind bot protection",
+                    site.name
+                ))
+                .await;
+                continue;
+            }
+            let status = classify_response(site, 200, "", &dom);
+            if status != SiteStatus::Claimed {
+                continue;
+            }
+            let confidence = signal_confidence(site);
+            let link = profile_url(site, &username);
+            let detail = serde_json::json!({
+                "siteCategory": site.category,
+                "siteSource": site.source,
+                "httpStatus": 0,
+                "probeUrl": url,
+                "signal": "browser-render",
+                "verified": confidence == Confidence::High,
+            });
+            ctx.emit(Finding {
+                module_id: "username.enumerate".into(),
+                category: "social_profile".into(),
+                label: site.name.clone(),
+                value: link.clone(),
+                url: Some(link),
+                confidence,
+                target: None,
+                detail: Some(detail),
+            })
+            .await;
+            ctx.note(&format!("{}: confirmed via rendered DOM", site.name))
+                .await;
+            ctx.progress(i as u64 + 1, pending.len() as u64).await;
+        }
         Ok(())
+    }
+}
+
+pub fn category_visible(category: &str, allowed: &[String], blocked: &[String]) -> bool {
+    if blocked
+        .iter()
+        .any(|c| c.eq_ignore_ascii_case(category.trim()))
+    {
+        return false;
+    }
+    allowed.is_empty()
+        || allowed
+            .iter()
+            .any(|c| c.eq_ignore_ascii_case(category.trim()))
+}
+
+fn category_note(allowed: &[String], blocked: &[String]) -> String {
+    if !allowed.is_empty() {
+        format!(", categories allowed: {}", allowed.join(", "))
+    } else if !blocked.is_empty() {
+        format!(", categories blocked: {}", blocked.join(", "))
+    } else {
+        String::new()
     }
 }
 
@@ -261,6 +388,46 @@ pub fn calibration_decision(
     }
 }
 
+pub fn classify_response(site: &Site, http: u16, final_url: &str, body: &str) -> SiteStatus {
+    match &site.kind {
+        DetectKind::Status { codes } => {
+            if codes.contains(&http) {
+                SiteStatus::Available
+            } else if site.unknown_codes.contains(&http) {
+                SiteStatus::Unknown
+            } else if (200..300).contains(&http) {
+                SiteStatus::Claimed
+            } else {
+                SiteStatus::Unknown
+            }
+        }
+        DetectKind::Message { absent, present } => {
+            if !(200..300).contains(&http) || body.is_empty() {
+                SiteStatus::Unknown
+            } else if absent.iter().any(|m| body.contains(m)) {
+                SiteStatus::Available
+            } else if !present.is_empty() {
+                if present.iter().any(|m| body.contains(m)) {
+                    SiteStatus::Claimed
+                } else {
+                    SiteStatus::Available
+                }
+            } else {
+                SiteStatus::Claimed
+            }
+        }
+        DetectKind::Redirect { marker } => {
+            if !(200..400).contains(&http) {
+                SiteStatus::Unknown
+            } else if final_url.contains(marker) || body.contains(marker) {
+                SiteStatus::Available
+            } else {
+                SiteStatus::Claimed
+            }
+        }
+    }
+}
+
 async fn probe(client: &reqwest::Client, site: &Site, username: &str) -> ProbeResult {
     if let Some(rx) = &site.regex {
         if !rx.is_match(username) {
@@ -338,43 +505,7 @@ async fn probe(client: &reqwest::Client, site: &Site, username: &str) -> ProbeRe
         };
     }
 
-    let status = match &site.kind {
-        DetectKind::Status { codes } => {
-            if codes.contains(&http) {
-                SiteStatus::Available
-            } else if site.unknown_codes.contains(&http) {
-                SiteStatus::Unknown
-            } else if (200..300).contains(&http) {
-                SiteStatus::Claimed
-            } else {
-                SiteStatus::Unknown
-            }
-        }
-        DetectKind::Message { absent, present } => {
-            if !(200..300).contains(&http) || body.is_empty() {
-                SiteStatus::Unknown
-            } else if absent.iter().any(|m| body.contains(m)) {
-                SiteStatus::Available
-            } else if !present.is_empty() {
-                if present.iter().any(|m| body.contains(m)) {
-                    SiteStatus::Claimed
-                } else {
-                    SiteStatus::Available
-                }
-            } else {
-                SiteStatus::Claimed
-            }
-        }
-        DetectKind::Redirect { marker } => {
-            if !(200..400).contains(&http) {
-                SiteStatus::Unknown
-            } else if final_url.contains(marker) || body.contains(marker) {
-                SiteStatus::Available
-            } else {
-                SiteStatus::Claimed
-            }
-        }
-    };
+    let status = classify_response(site, http, &final_url, &body);
     ProbeResult {
         status,
         http,
@@ -462,6 +593,82 @@ mod tests {
         assert!(a.starts_with("nx"));
         assert!(a.chars().skip(2).all(|c| c.is_ascii_hexdigit()));
         assert!(a.len() > 20);
+    }
+
+    fn site_with_kind(kind: DetectKind) -> Site {
+        Site {
+            name: "T".into(),
+            category: "test".into(),
+            url: "https://t.example/{}".into(),
+            probe: String::new(),
+            post: false,
+            body: String::new(),
+            headers: Vec::new(),
+            kind,
+            regex: None,
+            unknown_codes: vec![403, 429, 503],
+            strip: String::new(),
+            source: "test".into(),
+        }
+    }
+
+    #[test]
+    fn classify_message_detection() {
+        let site = site_with_kind(DetectKind::Message {
+            absent: vec!["not found".into()],
+            present: vec!["profile-found".into()],
+        });
+        assert_eq!(
+            classify_response(&site, 200, "", "welcome profile-found here"),
+            SiteStatus::Claimed
+        );
+        assert_eq!(
+            classify_response(&site, 200, "", "sorry not found"),
+            SiteStatus::Available
+        );
+        assert_eq!(classify_response(&site, 200, "", ""), SiteStatus::Unknown);
+        assert_eq!(classify_response(&site, 500, "", "x"), SiteStatus::Unknown);
+    }
+
+    #[test]
+    fn classify_status_and_redirect() {
+        let status_site = site_with_kind(DetectKind::Status { codes: vec![404] });
+        assert_eq!(
+            classify_response(&status_site, 404, "", ""),
+            SiteStatus::Available
+        );
+        assert_eq!(
+            classify_response(&status_site, 200, "", ""),
+            SiteStatus::Claimed
+        );
+        assert_eq!(
+            classify_response(&status_site, 403, "", ""),
+            SiteStatus::Unknown
+        );
+        let redirect = site_with_kind(DetectKind::Redirect {
+            marker: "signup".into(),
+        });
+        assert_eq!(
+            classify_response(&redirect, 200, "https://t.example/signup", ""),
+            SiteStatus::Available
+        );
+        assert_eq!(
+            classify_response(&redirect, 200, "https://t.example/u/x", ""),
+            SiteStatus::Claimed
+        );
+    }
+
+    #[test]
+    fn category_visibility_rules() {
+        let allowed = vec!["coding".to_string(), "gaming".to_string()];
+        let blocked = vec!["adult".to_string()];
+        assert!(category_visible("coding", &allowed, &blocked));
+        assert!(category_visible("Gaming", &allowed, &blocked));
+        assert!(!category_visible("forum", &allowed, &blocked));
+        assert!(!category_visible("adult", &[], &blocked));
+        assert!(category_visible("forum", &[], &blocked));
+        assert!(category_visible("coding", &[], &[]));
+        assert!(!category_visible(" adult ", &[], &blocked));
     }
 
     #[test]

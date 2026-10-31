@@ -127,6 +127,15 @@ void main() {
     expect(m.coreSites, 1112);
   });
 
+  test('category info parses name and count', () {
+    final c = CategoryInfo.fromJson({'name': 'coding', 'count': 1034});
+    expect(c.name, 'coding');
+    expect(c.count, 1034);
+    final empty = CategoryInfo.fromJson({});
+    expect(empty.name, '');
+    expect(empty.count, 0);
+  });
+
   test('snapshot parses pivot links and roundtrips them', () {
     final snap = ScanSnapshot.fromJson({
       'scanId': 's1',

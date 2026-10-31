@@ -44,9 +44,9 @@ P0 — directly competes on core value:
 P1 — differentiating but not blocking:
 
 - **Recursive pivoting.** Done in November 2026: discovered entities (exposed emails, alt handles, resolved IPs, subdomains, linked domains) are automatically queued as the next scan targets up to a configurable depth and budget, confidence-gated at Questionable+, with role-account, mail-provider and reserved-IP denylists. Every pivot lands in the graph with provenance edges and a depth badge. Remaining gap: clickable manual re-pivot from any lead node.
-- **Headless browser checks.** JS-only sites fail plain HTTP heuristics; an optional WebDriver/CDP pass would raise coverage where marker heuristics cannot.
-- **Site categories and bulk toggles** (Maigret `--tags`): filter scans by category or country instead of per-module switches only.
-- **Social graph enrichment**: followers/friends of found profiles as graph nodes (GitHub API already available in enrich).
+- **Headless browser checks.** Done in November 2026: an optional pass re-probes ambiguous sites (unknown answers, bot walls, JS-rendered pages) through a system Chromium-family browser with --dump-dom style rendering (chrome/edge/chromium/brave auto-detected, capped per scan) and applies the same marker heuristics to the rendered DOM. Remaining gap: full WebDriver/CDP automation for login-walled flows.
+- **Site categories and bulk toggles** (Maigret `--tags`). Done in November 2026: every category in the merged database can be set to include-only or excluded from Settings, with live counts; filters apply per scan. Remaining gap: country/language tag filters and scan-level presets.
+- **Social graph enrichment**: done for GitHub in November 2026 — the `social.graph` module pulls public follower/follow lists (up to 24 per direction) and links them into the graph as Confirmed username nodes. Remaining gap: Steam friends and Mastodon federation-wide follower lookups.
 - **Reverse image search** (Yandex/Lens/TinEye deep links exist in dorks only) and more image metadata sources beyond EXIF.
 - **macOS / Android targets** — the core is portable, the runners are not built yet.
 - **CLI mode** reusing the Rust core for scripting and CI use.

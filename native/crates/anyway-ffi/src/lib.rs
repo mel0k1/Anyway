@@ -68,11 +68,25 @@ pub extern "C" fn anyway_module_list() -> *mut c_char {
             entry
         })
         .collect();
+    let categories: Vec<serde_json::Value> = anyway_core::modules::sites::category_counts()
+        .into_iter()
+        .map(|(name, count)| json!({"name": name, "count": count}))
+        .collect();
     to_ptr(json!({
         "ok": true,
         "modules": modules,
         "sites": site_count,
         "coreSites": core_count,
+        "categories": categories,
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn anyway_browser_detect() -> *mut c_char {
+    let browser = anyway_core::browser::find_browser();
+    to_ptr(json!({
+        "ok": true,
+        "browser": browser.map(|p| p.display().to_string()),
     }))
 }
 

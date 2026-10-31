@@ -1,3 +1,4 @@
+pub mod browser;
 pub mod detect;
 pub mod engine;
 pub mod error;

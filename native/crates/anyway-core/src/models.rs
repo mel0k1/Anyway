@@ -61,6 +61,9 @@ pub struct ScanOptions {
     pub pivot_depth: u32,
     pub pivot_budget: u32,
     pub long_tail: bool,
+    pub browser_checks: bool,
+    pub allowed_categories: Vec<String>,
+    pub blocked_categories: Vec<String>,
 }
 
 impl Default for ScanOptions {
@@ -76,6 +79,9 @@ impl Default for ScanOptions {
             pivot_depth: 2,
             pivot_budget: 8,
             long_tail: false,
+            browser_checks: false,
+            allowed_categories: Vec::new(),
+            blocked_categories: Vec::new(),
         }
     }
 }

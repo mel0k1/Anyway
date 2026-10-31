@@ -59,6 +59,24 @@ class RustCore {
             .toList();
       });
 
+  static List<CategoryInfo> categoryList() => _call(() {
+        final f = lib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>('anyway_module_list');
+        final json = _take(f());
+        final map = jsonDecode(json) as Map<String, dynamic>;
+        if (map['ok'] != true) throw RustCoreException(map['error'] as String? ?? 'category list failed');
+        return ((map['categories'] as List?) ?? const [])
+            .map((e) => CategoryInfo.fromJson((e as Map).cast<String, dynamic>()))
+            .toList();
+      });
+
+  static String? detectBrowser() => _call(() {
+        final f = lib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>('anyway_browser_detect');
+        final json = _take(f());
+        final map = jsonDecode(json) as Map<String, dynamic>;
+        if (map['ok'] != true) return null;
+        return map['browser'] as String?;
+      });
+
   static String version() => _call(() => _v0()());
 
   static String scanStart(
@@ -73,6 +91,9 @@ class RustCore {
     int pivotDepth = 2,
     int pivotBudget = 8,
     bool longTail = false,
+    bool browserChecks = false,
+    List<String> allowedCategories = const <String>[],
+    List<String> blockedCategories = const <String>[],
   }) =>
       _call(() {
         final f = lib.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>), Pointer<Utf8> Function(Pointer<Utf8>)>(
@@ -90,6 +111,9 @@ class RustCore {
             'pivot_depth': pivotDepth,
             'pivot_budget': pivotBudget,
             'long_tail': longTail,
+            'browser_checks': browserChecks,
+            'allowed_categories': allowedCategories,
+            'blocked_categories': blockedCategories,
           },
         });
         final ptr = body.toNativeUtf8();

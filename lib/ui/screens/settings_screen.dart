@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_state.dart';
+import '../../core/models.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState state;
@@ -202,6 +203,97 @@ class SettingsScreen extends StatelessWidget {
                     : 'Username module will probe the core database only',
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Headless browser verification'),
+                subtitle: const Text(
+                  'After the plain-HTTP probe, ambiguous sites (unknown answers, bot walls, JavaScript-rendered pages) are re-checked through a real Chromium-family browser and confirmed from the rendered DOM',
+                ),
+                secondary: const Icon(Icons.web_asset),
+                value: state.browserChecks,
+                onChanged: state.setBrowserChecks,
+              ),
+              Row(
+                children: [
+                  Icon(
+                    state.detectedBrowser == null ? Icons.block : Icons.check_circle,
+                    size: 18,
+                    color: state.detectedBrowser == null ? scheme.onSurfaceVariant : scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.detectedBrowser == null
+                          ? 'No Chromium-family browser detected on this system'
+                          : 'Browser detected: ${state.detectedBrowser}',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _Section(
+          title: 'Site categories',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tap a category to cycle: every site, included only, or excluded. Filters apply to the username module',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in state.categories)
+                    _CategoryChip(
+                      info: c,
+                      state: state.categoryState(c.name),
+                      onCycle: () {
+                        final next = switch (state.categoryState(c.name)) {
+                          CategoryState.neutral => CategoryState.allowed,
+                          CategoryState.allowed => CategoryState.blocked,
+                          CategoryState.blocked => CategoryState.neutral,
+                        };
+                        state.setCategoryState(c.name, next);
+                      },
+                    ),
+                ],
+              ),
+              if (state.allowedCategories.isNotEmpty || state.blockedCategories.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    if (state.allowedCategories.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          '${state.allowedCategories.length} included',
+                          style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    if (state.blockedCategories.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          '${state.blockedCategories.length} excluded',
+                          style: TextStyle(color: scheme.error, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    const Spacer(),
+                    ActionChip(
+                      avatar: const Icon(Icons.restart_alt, size: 16),
+                      label: const Text('Reset'),
+                      onPressed: state.resetCategories,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -303,6 +395,58 @@ class _Section extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _CategoryChip extends StatelessWidget {
+  final CategoryInfo info;
+  final CategoryState state;
+  final VoidCallback onCycle;
+
+  const _CategoryChip({
+    required this.info,
+    required this.state,
+    required this.onCycle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (bg, fg, icon, tooltip) = switch (state) {
+      CategoryState.allowed => (
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer,
+        Icons.check,
+        'Included: only this category will be probed',
+      ),
+      CategoryState.blocked => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+        Icons.block,
+        'Excluded: this category will be skipped',
+      ),
+      CategoryState.neutral => (
+        scheme.surfaceContainerHigh,
+        scheme.onSurfaceVariant,
+        null,
+        'All sites of this category are probed',
+      ),
+    };
+    return Tooltip(
+      message: tooltip,
+      child: ActionChip(
+        backgroundColor: bg,
+        avatar: icon == null
+            ? null
+            : Icon(icon, size: 15, color: fg),
+        label: Text(
+          '${info.name} · ${info.count}',
+          style: TextStyle(color: fg, fontSize: 11.5, fontWeight: FontWeight.w600),
+        ),
+        onPressed: onCycle,
       ),
     );
   }

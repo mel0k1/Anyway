@@ -32,6 +32,10 @@ class _FindingCardState extends State<FindingCard> {
         'phone_info' => Icons.call,
         'metadata' => Icons.image,
         'search_dork' => Icons.travel_explore,
+        'social_connection' => Icons.group,
+        'email_account' => Icons.assignment_ind,
+        'breach' => Icons.dangerous,
+        'breach_info' => Icons.security,
         _ => Icons.circle,
       };
 

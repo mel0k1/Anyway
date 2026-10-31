@@ -8,6 +8,7 @@ pub mod exif;
 pub mod ipaddr;
 pub mod phone;
 pub mod sites;
+pub mod social_graph;
 pub mod username;
 
 use crate::engine::ModuleCtx;
@@ -41,6 +42,7 @@ pub fn registry() -> Vec<Arc<dyn Module>> {
     vec![
         Arc::new(username::UsernameModule),
         Arc::new(enrich::EnrichModule),
+        Arc::new(social_graph::SocialGraphModule),
         Arc::new(dorks::DorksModule),
         Arc::new(email::EmailModule),
         Arc::new(email_accounts::EmailAccountsModule),
