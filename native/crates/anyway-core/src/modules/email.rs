@@ -6,17 +6,38 @@ use md5::{Digest, Md5};
 use serde_json::json;
 
 const DISPOSABLE: &[&str] = &[
-    "10minutemail.com", "guerrillamail.com", "mailinator.com", "tempmail.com",
-    "throwawaymail.com", "yopmail.com", "getnada.com", "dispostable.com",
-    "maildrop.cc", "sharklasers.com", "temp-mail.org", "fakeinbox.com",
-    "mailnesia.com", "trashmail.com", "mytemp.email", "moakt.com",
+    "10minutemail.com",
+    "guerrillamail.com",
+    "mailinator.com",
+    "tempmail.com",
+    "throwawaymail.com",
+    "yopmail.com",
+    "getnada.com",
+    "dispostable.com",
+    "maildrop.cc",
+    "sharklasers.com",
+    "temp-mail.org",
+    "fakeinbox.com",
+    "mailnesia.com",
+    "trashmail.com",
+    "mytemp.email",
+    "moakt.com",
 ];
 
 const PROVIDERS: &[(&str, &str)] = &[
-    ("gmail.com", "Google"), ("outlook.com", "Microsoft"), ("hotmail.com", "Microsoft"),
-    ("live.com", "Microsoft"), ("yahoo.com", "Yahoo"), ("proton.me", "Proton"),
-    ("protonmail.com", "Proton"), ("icloud.com", "Apple"), ("yandex.ru", "Yandex"),
-    ("mail.ru", "VK"), ("zoho.com", "Zoho"), ("gmx.com", "GMX"), ("aol.com", "AOL"),
+    ("gmail.com", "Google"),
+    ("outlook.com", "Microsoft"),
+    ("hotmail.com", "Microsoft"),
+    ("live.com", "Microsoft"),
+    ("yahoo.com", "Yahoo"),
+    ("proton.me", "Proton"),
+    ("protonmail.com", "Proton"),
+    ("icloud.com", "Apple"),
+    ("yandex.ru", "Yandex"),
+    ("mail.ru", "VK"),
+    ("zoho.com", "Zoho"),
+    ("gmx.com", "GMX"),
+    ("aol.com", "AOL"),
 ];
 
 pub struct EmailModule;
@@ -46,12 +67,15 @@ impl Module for EmailModule {
             value: local.to_string(),
             url: None,
             confidence: Confidence::High,
+            target: None,
             detail: Some(json!({"domain": domain})),
         })
         .await;
         ctx.progress(1, 4).await;
 
-        let mx = crate::http::dns_lookup(&ctx.client, domain, "MX").await.unwrap_or_default();
+        let mx = crate::http::dns_lookup(&ctx.client, domain, "MX")
+            .await
+            .unwrap_or_default();
         if mx.is_empty() {
             ctx.emit(Finding {
                 module_id: "email.recon".into(),
@@ -60,6 +84,7 @@ impl Module for EmailModule {
                 value: domain.to_string(),
                 url: None,
                 confidence: Confidence::Medium,
+                target: None,
                 detail: None,
             })
             .await;
@@ -71,6 +96,7 @@ impl Module for EmailModule {
                 value: mx.join(", "),
                 url: None,
                 confidence: Confidence::High,
+                target: None,
                 detail: Some(json!({"records": mx})),
             })
             .await;
@@ -85,12 +111,16 @@ impl Module for EmailModule {
                 value: domain.to_string(),
                 url: None,
                 confidence: Confidence::High,
+                target: None,
                 detail: None,
             })
             .await;
         }
 
-        if let Some((_, provider)) = PROVIDERS.iter().find(|(d, _)| domain.eq_ignore_ascii_case(d)) {
+        if let Some((_, provider)) = PROVIDERS
+            .iter()
+            .find(|(d, _)| domain.eq_ignore_ascii_case(d))
+        {
             ctx.emit(Finding {
                 module_id: "email.recon".into(),
                 category: "email_info".into(),
@@ -98,6 +128,7 @@ impl Module for EmailModule {
                 value: provider.to_string(),
                 url: None,
                 confidence: Confidence::High,
+                target: None,
                 detail: None,
             })
             .await;
@@ -118,6 +149,7 @@ impl Module for EmailModule {
                     value: avatar_url.clone(),
                     url: Some(avatar_url),
                     confidence: Confidence::High,
+                    target: None,
                     detail: Some(json!({"hash": hash})),
                 })
                 .await;
@@ -135,6 +167,7 @@ impl Module for EmailModule {
                         value: v["display_name"].as_str().unwrap_or("profile").to_string(),
                         url: Some(format!("https://gravatar.com/{hash}")),
                         confidence: Confidence::High,
+                        target: None,
                         detail: Some(v),
                     })
                     .await;

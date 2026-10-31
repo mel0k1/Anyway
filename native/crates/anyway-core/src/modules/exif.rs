@@ -13,7 +13,8 @@ impl Module for ExifModule {
         &super::ModuleDescriptor {
             id: "file.exif",
             name: "File Metadata",
-            description: "Extracts EXIF from images: device, software, timestamps and GPS coordinates",
+            description:
+                "Extracts EXIF from images: device, software, timestamps and GPS coordinates",
             accepts: &[crate::models::TargetKind::File],
         }
     }
@@ -67,6 +68,7 @@ impl Module for ExifModule {
                     value: path.clone(),
                     url: None,
                     confidence: Confidence::High,
+                    target: None,
                     detail: Some(Value::Object(fields)),
                 })
                 .await;
@@ -79,10 +81,26 @@ impl Module for ExifModule {
 }
 
 const INTERESTED: &[&str] = &[
-    "Make", "Model", "LensMake", "LensModel", "Software", "DateTime", "DateTimeOriginal",
-    "DateTimeDigitized", "ExposureTime", "FNumber", "ISOSpeedRatings", "FocalLength",
-    "ImageWidth", "ImageLength", "Orientation", "CameraOwnerName", "BodySerialNumber",
-    "ImageUniqueID", "Copyright", "Artist",
+    "Make",
+    "Model",
+    "LensMake",
+    "LensModel",
+    "Software",
+    "DateTime",
+    "DateTimeOriginal",
+    "DateTimeDigitized",
+    "ExposureTime",
+    "FNumber",
+    "ISOSpeedRatings",
+    "FocalLength",
+    "ImageWidth",
+    "ImageLength",
+    "Orientation",
+    "CameraOwnerName",
+    "BodySerialNumber",
+    "ImageUniqueID",
+    "Copyright",
+    "Artist",
 ];
 
 fn gps_decimal(exif: &exif::Exif) -> Option<(f64, f64)> {

@@ -1,4 +1,4 @@
-use super::sites::{Rule, Site, SiteMethod, SITES, WAF_FINGERPRINTS};
+use super::sites::{looks_like_waf, sites, DetectKind, Site};
 use super::Module;
 use crate::engine::ModuleCtx;
 use crate::error::CoreError;
@@ -24,19 +24,22 @@ impl Module for UsernameModule {
         &super::ModuleDescriptor {
             id: "username.enumerate",
             name: "Username Enumeration",
-            description: "Probes 36 social and developer platforms for profiles matching the username",
+            description: "Probes 700+ social, developer, forum and gaming platforms with status, message, presence and redirect heuristics",
             accepts: &[crate::models::TargetKind::Username],
         }
     }
 
     async fn run(&self, ctx: ModuleCtx) -> Result<(), CoreError> {
         let username = ctx.target.normalized.clone();
-        let conc = ctx.options.concurrency.clamp(4, 32) as usize;
-        let total = SITES.len();
+        let conc = ctx.options.concurrency.clamp(4, 64) as usize;
+        let all = sites();
+        let total = all.len();
         let done = Arc::new(AtomicUsize::new(0));
         let client = Arc::new(ctx.client.clone());
 
-        stream::iter(SITES.iter().cloned())
+        ctx.note(&format!("probing {total} sites")).await;
+
+        stream::iter(all.iter().cloned())
             .map(|site| {
                 let client = client.clone();
                 let username = username.clone();
@@ -46,21 +49,28 @@ impl Module for UsernameModule {
                     if ctx.cancelled() {
                         return;
                     }
-                    let (site_name, status, http, probe_url) = probe(&client, &site, &username).await;
+                    let (status, http, probe_url) = probe(&client, &site, &username).await;
                     let i = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    ctx.progress(i as u64, total as u64).await;
+                    if i.is_multiple_of(25) {
+                        ctx.progress(i as u64, total as u64).await;
+                    }
                     if status == SiteStatus::Claimed {
-                        let confidence = match site.rule {
-                            Rule::Status => Confidence::High,
-                            _ => Confidence::Medium,
+                        let confidence = match &site.kind {
+                            DetectKind::Message { present, .. } if !present.is_empty() => {
+                                Confidence::High
+                            }
+                            DetectKind::Redirect { .. } => Confidence::Medium,
+                            _ => Confidence::High,
                         };
+                        let link = profile_url(&site, &username);
                         ctx.emit(Finding {
                             module_id: "username.enumerate".into(),
                             category: "social_profile".into(),
-                            label: site_name.into(),
-                            value: profile_url(&site, &username),
-                            url: Some(profile_url(&site, &username)),
+                            label: site.name.clone(),
+                            value: link.clone(),
+                            url: Some(link),
                             confidence,
+                            target: None,
                             detail: Some(serde_json::json!({
                                 "siteCategory": site.category,
                                 "httpStatus": http,
@@ -74,72 +84,110 @@ impl Module for UsernameModule {
             .buffer_unordered(conc)
             .count()
             .await;
+        ctx.progress(total as u64, total as u64).await;
         Ok(())
     }
 }
 
 fn profile_url(site: &Site, username: &str) -> String {
-    let pattern = if site.link.is_empty() { site.url } else { site.link };
-    pattern.replace("{}", username)
+    site.url.replace("{}", username)
 }
 
 fn fill(pattern: &str, username: &str) -> String {
     pattern.replace("{}", username)
 }
 
-fn looks_like_waf(body: &str) -> bool {
-    WAF_FINGERPRINTS.iter().any(|f| body.contains(f))
-}
-
-async fn probe(client: &reqwest::Client, site: &Site, username: &str) -> (&'static str, SiteStatus, u16, String) {
-    if !site.regex.is_empty() {
-        let legal = regex::Regex::new(site.regex)
-            .map(|r| r.is_match(username))
-            .unwrap_or(true);
-        if !legal {
-            return (site.name, SiteStatus::Illegal, 0, String::new());
+async fn probe(client: &reqwest::Client, site: &Site, username: &str) -> (SiteStatus, u16, String) {
+    if let Some(rx) = &site.regex {
+        if !rx.is_match(username) {
+            return (SiteStatus::Illegal, 0, String::new());
         }
     }
 
-    let target_url = if site.probe.is_empty() { site.url } else { site.probe };
+    let target_url = if site.probe.is_empty() {
+        &site.url
+    } else {
+        &site.probe
+    };
     let url = fill(target_url, username);
 
-    let request = match site.method {
-        SiteMethod::Post => client
+    let mut request = match site.post {
+        true => client
             .post(&url)
-            .header("Content-Type", "application/json")
-            .body(fill(site.payload, username)),
-        SiteMethod::Get => client.get(&url),
+            .header(
+                "Content-Type",
+                site.headers
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or_else(|| "application/json".into()),
+            )
+            .body(fill(&site.body, username)),
+        false => client.get(&url),
     };
+    for (k, v) in &site.headers {
+        if site.post && k.eq_ignore_ascii_case("content-type") {
+            continue;
+        }
+        request = request.header(k, v);
+    }
 
     let Ok(resp) = request.send().await else {
-        return (site.name, SiteStatus::Unknown, 0, url);
+        return (SiteStatus::Unknown, 0, url);
     };
     let http = resp.status().as_u16();
+    if resp
+        .headers()
+        .get("cf-mitigated")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("challenge"))
+        .unwrap_or(false)
+    {
+        return (SiteStatus::Waf, http, url);
+    }
+    let final_url = resp.url().to_string();
     let body = resp.text().await.unwrap_or_default();
 
     if looks_like_waf(&body) {
-        return (site.name, SiteStatus::Waf, http, url);
+        return (SiteStatus::Waf, http, url);
     }
 
-    let status = match site.rule {
-        Rule::Msg(msgs) => {
-            if msgs.iter().any(|m| body.contains(m)) {
+    let status = match &site.kind {
+        DetectKind::Status { codes } => {
+            if codes.contains(&http) {
                 SiteStatus::Available
+            } else if site.unknown_codes.contains(&http) {
+                SiteStatus::Unknown
+            } else if (200..300).contains(&http) {
+                SiteStatus::Claimed
+            } else {
+                SiteStatus::Unknown
+            }
+        }
+        DetectKind::Message { absent, present } => {
+            if !(200..300).contains(&http) || body.is_empty() {
+                SiteStatus::Unknown
+            } else if absent.iter().any(|m| body.contains(m)) {
+                SiteStatus::Available
+            } else if !present.is_empty() {
+                if present.iter().any(|m| body.contains(m)) {
+                    SiteStatus::Claimed
+                } else {
+                    SiteStatus::Available
+                }
             } else {
                 SiteStatus::Claimed
             }
         }
-        Rule::Redirect(_) => SiteStatus::Unknown,
-        Rule::Status => {
-            if site.unknown_codes.contains(&http) {
+        DetectKind::Redirect { marker } => {
+            if !(200..400).contains(&http) {
                 SiteStatus::Unknown
-            } else if !(200..300).contains(&http) {
+            } else if final_url.contains(marker) || body.contains(marker) {
                 SiteStatus::Available
             } else {
                 SiteStatus::Claimed
             }
         }
     };
-    (site.name, status, http, url)
+    (status, http, url)
 }

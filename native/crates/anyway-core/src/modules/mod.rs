@@ -1,4 +1,5 @@
 pub mod domain;
+pub mod dorks;
 pub mod email;
 pub mod enrich;
 pub mod exif;
@@ -38,6 +39,7 @@ pub fn registry() -> Vec<Arc<dyn Module>> {
     vec![
         Arc::new(username::UsernameModule),
         Arc::new(enrich::EnrichModule),
+        Arc::new(dorks::DorksModule),
         Arc::new(email::EmailModule),
         Arc::new(ipaddr::IpModule),
         Arc::new(domain::DomainModule),

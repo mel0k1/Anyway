@@ -23,10 +23,7 @@ impl Module for PhoneModule {
 
         match phonenumber::parse(None, &raw) {
             Ok(number) => {
-                let e164 = number
-                    .format()
-                    .mode(phonenumber::Mode::E164)
-                    .to_string();
+                let e164 = number.format().mode(phonenumber::Mode::E164).to_string();
                 let intl = number
                     .format()
                     .mode(phonenumber::Mode::International)
@@ -36,7 +33,8 @@ impl Module for PhoneModule {
                     .id()
                     .map(|id| format!("{id:?}"))
                     .unwrap_or_else(|| "unknown".into());
-                let line_type = format!("{:?}", number.number_type(&phonenumber::metadata::DATABASE));
+                let line_type =
+                    format!("{:?}", number.number_type(&phonenumber::metadata::DATABASE));
                 let valid = phonenumber::is_valid(&number);
 
                 ctx.emit(Finding {
@@ -46,6 +44,7 @@ impl Module for PhoneModule {
                     value: intl.clone(),
                     url: None,
                     confidence: Confidence::High,
+                    target: None,
                     detail: Some(json!({
                         "e164": e164,
                         "international": intl,

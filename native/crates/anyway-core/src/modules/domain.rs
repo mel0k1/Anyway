@@ -22,7 +22,9 @@ impl Module for DomainModule {
         let domain = ctx.target.normalized.clone();
         ctx.progress(0, 3).await;
 
-        if let Ok(v) = crate::http::fetch_json(&ctx.client, &format!("https://rdap.org/domain/{domain}")).await {
+        if let Ok(v) =
+            crate::http::fetch_json(&ctx.client, &format!("https://rdap.org/domain/{domain}")).await
+        {
             let registrar = v["entities"]
                 .as_array()
                 .and_then(|es| {
@@ -37,7 +39,9 @@ impl Module for DomainModule {
                             e["vcardArray"][1]
                                 .as_array()
                                 .and_then(|props| {
-                                    props.iter().find(|p| p.get(0).and_then(|x| x.as_str()) == Some("fn"))
+                                    props
+                                        .iter()
+                                        .find(|p| p.get(0).and_then(|x| x.as_str()) == Some("fn"))
                                 })
                                 .and_then(|p| p.get(3).and_then(|x| x.as_str()))
                                 .map(|s| s.to_string())
@@ -59,13 +63,21 @@ impl Module for DomainModule {
                 .unwrap_or_default();
             let statuses: Vec<String> = v["status"]
                 .as_array()
-                .map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|s| s.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
             let nameservers: Vec<String> = v["nameservers"]
                 .as_array()
                 .map(|a| {
                     a.iter()
-                        .filter_map(|n| n["ldhName"].as_str().map(|s| s.trim_end_matches('.').to_string()))
+                        .filter_map(|n| {
+                            n["ldhName"]
+                                .as_str()
+                                .map(|s| s.trim_end_matches('.').to_string())
+                        })
                         .collect()
                 })
                 .unwrap_or_default();
@@ -76,6 +88,7 @@ impl Module for DomainModule {
                 value: registrar.clone(),
                 url: None,
                 confidence: Confidence::High,
+                target: None,
                 detail: Some(json!({
                     "registrar": registrar, "handle": v["handle"],
                     "statuses": statuses, "nameservers": nameservers,
@@ -91,7 +104,9 @@ impl Module for DomainModule {
             if ctx.cancelled() {
                 return Ok(());
             }
-            let vals = crate::http::dns_lookup(&ctx.client, &domain, rrtype).await.unwrap_or_default();
+            let vals = crate::http::dns_lookup(&ctx.client, &domain, rrtype)
+                .await
+                .unwrap_or_default();
             if !vals.is_empty() {
                 records.insert(rrtype.to_string(), json!(vals));
             }
@@ -108,6 +123,7 @@ impl Module for DomainModule {
                     .join(", "),
                 url: None,
                 confidence: Confidence::High,
+                target: None,
                 detail: Some(json!(records)),
             })
             .await;
@@ -146,6 +162,7 @@ impl Module for DomainModule {
                             value: subs.join(", "),
                             url: None,
                             confidence: Confidence::Medium,
+                            target: None,
                             detail: Some(json!({"list": subs})),
                         })
                         .await;

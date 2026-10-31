@@ -39,6 +39,7 @@ impl Module for IpModule {
                     ),
                     url: None,
                     confidence: Confidence::High,
+                    target: None,
                     detail: Some(v.clone()),
                 })
                 .await;
@@ -58,6 +59,7 @@ impl Module for IpModule {
                     value: format!("{} / {}", v["isp"].as_str().unwrap_or("?"), v["as"].as_str().unwrap_or("?")),
                     url: None,
                     confidence: Confidence::High,
+                    target: None,
                     detail: Some(json!({"org": v["org"], "asname": v["asname"], "flags": flags, "reverse": v["reverse"]})),
                 })
                 .await;
@@ -65,7 +67,9 @@ impl Module for IpModule {
         }
         ctx.progress(1, 3).await;
 
-        if let Ok(v) = crate::http::fetch_json(&ctx.client, &format!("https://rdap.org/ip/{ip}")).await {
+        if let Ok(v) =
+            crate::http::fetch_json(&ctx.client, &format!("https://rdap.org/ip/{ip}")).await
+        {
             let abuse = collect_abuse(&v);
             let events: Vec<String> = v["events"]
                 .as_array()
@@ -88,6 +92,7 @@ impl Module for IpModule {
                 value: v["name"].as_str().unwrap_or("network").to_string(),
                 url: None,
                 confidence: Confidence::High,
+                target: None,
                 detail: Some(json!({
                     "handle": v["handle"], "netname": v["name"], "type": v["type"],
                     "country": v["country"], "range": [v["startAddress"], v["endAddress"]],
@@ -107,6 +112,7 @@ impl Module for IpModule {
                     value: ptrs.join(", "),
                     url: None,
                     confidence: Confidence::High,
+                    target: None,
                     detail: Some(json!({"records": ptrs})),
                 })
                 .await;
