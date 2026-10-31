@@ -632,6 +632,7 @@ class _NodePanel extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'Close node details',
                 icon: const Icon(Icons.close, size: 18),
                 onPressed: onClose,
               ),

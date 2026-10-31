@@ -51,6 +51,7 @@ class CasesScreen extends StatelessWidget {
                             title: Text(c.title, style: const TextStyle(fontWeight: FontWeight.w700)),
                             subtitle: Text('${c.kind.title} · ${c.findingCount} findings · ${_date(c.createdAt)}'),
                             trailing: IconButton(
+                              tooltip: 'Delete case',
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
                                 final ok = await showDialog<bool>(
