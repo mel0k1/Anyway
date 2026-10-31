@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
+import '../theme/app_theme.dart';
 
 class GraphScreen extends StatefulWidget {
   final AppState state;
@@ -31,6 +32,7 @@ class _GraphScreenState extends State<GraphScreen> {
   final Set<Confidence> _visible = Confidence.values.toSet();
   int _layoutSeed = 0;
   final Size _canvas = const Size(2400, 1600);
+  Size _viewport = Size.zero;
 
   ScanSnapshot? get _snap =>
       widget.state.lastSnapshot ?? widget.state.activeScan;
@@ -92,7 +94,9 @@ class _GraphScreenState extends State<GraphScreen> {
     const gravity = 0.012;
     final iterations = nodes.length > 400 ? 90 : 200;
     final edges = graph.edges
-        .where((e) => _positions.containsKey(e.from) && _positions.containsKey(e.to))
+        .where(
+          (e) => _positions.containsKey(e.from) && _positions.containsKey(e.to),
+        )
         .toList();
     final centers = nodes.where((n) => n.pinned).map((n) => n.pos).toList();
     final center = centers.isEmpty
@@ -110,10 +114,7 @@ class _GraphScreenState extends State<GraphScreen> {
           var delta = a.pos - b.pos;
           var dist = delta.distance;
           if (dist < 1) {
-            delta = Offset(
-              rng.nextDouble() - 0.5,
-              rng.nextDouble() - 0.5,
-            );
+            delta = Offset(rng.nextDouble() - 0.5, rng.nextDouble() - 0.5);
             dist = 1;
           }
           dist = math.max(dist, 24.0);
@@ -143,9 +144,40 @@ class _GraphScreenState extends State<GraphScreen> {
   }
 
   Set<String> get _hiddenIds => {
-        for (final entry in _positions.entries)
-          if (!_visible.contains(entry.value.node.confidence)) entry.key
-      };
+    for (final entry in _positions.entries)
+      if (!_visible.contains(entry.value.node.confidence)) entry.key,
+  };
+
+  void _fit() {
+    if (_viewport == Size.zero || _positions.isEmpty) return;
+    var minX = double.infinity;
+    var minY = double.infinity;
+    var maxX = double.negativeInfinity;
+    var maxY = double.negativeInfinity;
+    for (final n in _positions.values) {
+      if (!_visible.contains(n.node.confidence)) continue;
+      minX = math.min(minX, n.pos.dx);
+      minY = math.min(minY, n.pos.dy);
+      maxX = math.max(maxX, n.pos.dx);
+      maxY = math.max(maxY, n.pos.dy);
+    }
+    if (minX == double.infinity) return;
+    const pad = 90.0;
+    final bw = math.max(maxX - minX + pad * 2, 1.0);
+    final bh = math.max(maxY - minY + pad * 2, 1.0);
+    final s = math
+        .min(
+          (_viewport.width - pad * 2) / bw,
+          (_viewport.height - pad * 2) / bh,
+        )
+        .clamp(0.15, 3.5);
+    final cx = (minX + maxX) / 2;
+    final cy = (minY + maxY) / 2;
+    _transform.value = Matrix4.identity()
+      ..translateByDouble(_viewport.width / 2, _viewport.height / 2, 0, 1)
+      ..scaleByDouble(s, s, 1, 1)
+      ..translateByDouble(-cx, -cy, 0, 1);
+  }
 
   Offset _toCanvas(Offset localPoint) {
     final inverse = Matrix4.inverted(_transform.value);
@@ -172,10 +204,10 @@ class _GraphScreenState extends State<GraphScreen> {
       n.node.root ? 26 : math.min(12.0 + n.degree * 2.2, 30);
 
   Color _confidenceColor(Confidence c, ColorScheme scheme) => switch (c) {
-        Confidence.high => const Color(0xFF43A047),
-        Confidence.medium => const Color(0xFFFFB300),
-        Confidence.low => const Color(0xFF78909C),
-      };
+    Confidence.high => const Color(0xFF43A047),
+    Confidence.medium => const Color(0xFFFFB300),
+    Confidence.low => const Color(0xFF78909C),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -202,13 +234,15 @@ class _GraphScreenState extends State<GraphScreen> {
     }
 
     final hidden = _hiddenIds;
-    final visibleNodes =
-        graph.nodes.where((n) => !hidden.contains(n.id)).length;
+    final visibleNodes = graph.nodes
+        .where((n) => !hidden.contains(n.id))
+        .length;
     final visibleEdges = graph.edges
         .where((e) => !hidden.contains(e.from) && !hidden.contains(e.to))
         .length;
-    final selectedNode =
-        graph.nodes.where((n) => n.id == _selected).firstOrNull;
+    final selectedNode = graph.nodes
+        .where((n) => n.id == _selected)
+        .firstOrNull;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -221,9 +255,11 @@ class _GraphScreenState extends State<GraphScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Graph · ${snap.target.raw}',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(
+                      'Graph · ${snap.target.raw}',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       '$visibleNodes nodes · $visibleEdges links · confidence filters apply',
@@ -231,6 +267,11 @@ class _GraphScreenState extends State<GraphScreen> {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Fit to view',
+                icon: const Icon(Icons.center_focus_strong),
+                onPressed: _fit,
               ),
               IconButton(
                 tooltip: 'Relayout',
@@ -247,7 +288,11 @@ class _GraphScreenState extends State<GraphScreen> {
                 FilterChip(
                   selected: _visible.contains(c),
                   label: Text(c.label),
-                  avatar: Icon(Icons.circle, size: 12, color: _confidenceColor(c, scheme)),
+                  avatar: Icon(
+                    Icons.circle,
+                    size: 12,
+                    color: _confidenceColor(c, scheme),
+                  ),
                   onSelected: (on) => setState(() {
                     on ? _visible.add(c) : _visible.remove(c);
                     if (_selected != null) {
@@ -269,73 +314,88 @@ class _GraphScreenState extends State<GraphScreen> {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTapUp: _onTapUp,
-                      child: InteractiveViewer(
-                        transformationController: _transform,
-                        boundaryMargin: const EdgeInsets.all(600),
-                        minScale: 0.15,
-                        maxScale: 3.5,
-                        panEnabled: true,
-                        scaleEnabled: true,
-                        child: SizedBox(
-                          width: _canvas.width,
-                          height: _canvas.height,
-                          child: CustomPaint(
-                            painter: _GraphPainter(
-                              graph: graph,
-                              positions: _positions,
-                              hidden: hidden,
-                              selected: _selected,
-                              confidenceColor: (c) =>
-                                  _confidenceColor(c, scheme),
-                              outline: scheme.outlineVariant,
-                              background: scheme.surfaceContainerLowest,
-                              labelColor: scheme.onSurface,
+            child: LayoutBuilder(
+              builder: (context, box) {
+                _viewport = Size(box.maxWidth, box.maxHeight);
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: GestureDetector(
+                          onTapUp: _onTapUp,
+                          child: InteractiveViewer(
+                            transformationController: _transform,
+                            boundaryMargin: const EdgeInsets.all(600),
+                            minScale: 0.15,
+                            maxScale: 3.5,
+                            panEnabled: true,
+                            scaleEnabled: true,
+                            child: SizedBox(
+                              width: _canvas.width,
+                              height: _canvas.height,
+                              child: CustomPaint(
+                                painter: _GraphPainter(
+                                  graph: graph,
+                                  positions: _positions,
+                                  hidden: hidden,
+                                  selected: _selected,
+                                  confidenceColor: (c) =>
+                                      _confidenceColor(c, scheme),
+                                  outline: scheme.outlineVariant,
+                                  background: Colors.transparent,
+                                  labelColor: scheme.onSurface,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    bottom: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHigh.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(16),
+                      Positioned(
+                        left: 16,
+                        bottom: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerHigh.withValues(
+                              alpha: 0.92,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Wrap(
+                            spacing: 14,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              for (final k in GraphNodeKind.values)
+                                if (graph.nodes.any(
+                                  (n) => n.kind == k && !hidden.contains(n.id),
+                                ))
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        k.icon,
+                                        size: 14,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        k.title,
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
+                            ],
+                          ),
+                        ),
                       ),
-                      child: Wrap(
-                        spacing: 14,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          for (final k in GraphNodeKind.values)
-                            if (graph.nodes
-                                .any((n) => n.kind == k && !hidden.contains(n.id)))
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(k.icon,
-                                      size: 14, color: scheme.onSurfaceVariant),
-                                  const SizedBox(width: 4),
-                                  Text(k.title,
-                                      style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
           if (selectedNode != null)
@@ -392,23 +452,32 @@ class _GraphPainter extends CustomPainter {
           selected != null && (e.from == selected || e.to == selected);
       if (isSelected) selectedEdges.add(e);
       final paint = Paint()
-        ..color = confidenceColor(e.confidence)
-            .withValues(alpha: selected == null ? 0.38 : (isSelected ? 0.85 : 0.08))
+        ..color = confidenceColor(e.confidence).withValues(
+          alpha: selected == null ? 0.38 : (isSelected ? 0.85 : 0.08),
+        )
         ..strokeWidth = isSelected ? 2.4 : 1.2
         ..style = PaintingStyle.stroke;
       canvas.drawLine(a.pos, b.pos, paint);
     }
 
-    final labelStyle = TextStyle(color: labelColor.withValues(alpha: 0.85), fontSize: 11);
+    final labelStyle = TextStyle(
+      color: labelColor.withValues(alpha: 0.85),
+      fontSize: 11,
+      fontFamily: AppTheme.family,
+    );
     for (final entry in positions.entries) {
       if (hidden.contains(entry.key)) continue;
       final n = entry.value;
       final radius = _radius(n);
       final color = confidenceColor(n.node.confidence);
       final isSel = entry.key == selected;
-      final isConnected = selected != null &&
-          graph.edges
-              .any((e) => (e.from == selected && e.to == entry.key) || (e.to == selected && e.from == entry.key));
+      final isConnected =
+          selected != null &&
+          graph.edges.any(
+            (e) =>
+                (e.from == selected && e.to == entry.key) ||
+                (e.to == selected && e.from == entry.key),
+          );
       final dimmed = selected != null && !isSel && !isConnected;
 
       if (n.node.root) {
@@ -424,8 +493,7 @@ class _GraphPainter extends CustomPainter {
       canvas.drawCircle(
         n.pos,
         radius,
-        Paint()
-          ..color = color.withValues(alpha: dimmed ? 0.25 : 0.9),
+        Paint()..color = color.withValues(alpha: dimmed ? 0.25 : 0.9),
       );
       canvas.drawCircle(
         n.pos,
@@ -444,6 +512,7 @@ class _GraphPainter extends CustomPainter {
               color: Colors.white.withValues(alpha: dimmed ? 0.4 : 0.95),
               fontSize: math.max(radius * 0.85, 10),
               fontWeight: FontWeight.w800,
+              fontFamily: AppTheme.family,
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -470,23 +539,23 @@ class _GraphPainter extends CustomPainter {
   }
 
   String? _kindGlyph(GraphNodeKind kind) => switch (kind) {
-        GraphNodeKind.username => 'U',
-        GraphNodeKind.email => '@',
-        GraphNodeKind.ip => 'IP',
-        GraphNodeKind.domain => 'D',
-        GraphNodeKind.phone => 'P',
-        GraphNodeKind.file => 'F',
-        GraphNodeKind.platform => 'S',
-        GraphNodeKind.org => 'O',
-        GraphNodeKind.country => 'C',
-        GraphNodeKind.location => 'L',
-        GraphNodeKind.device => 'V',
-        GraphNodeKind.person => 'H',
-        GraphNodeKind.provider => 'M',
-        GraphNodeKind.infra => 'N',
-        GraphNodeKind.lead => '?',
-        GraphNodeKind.other => null,
-      };
+    GraphNodeKind.username => 'U',
+    GraphNodeKind.email => '@',
+    GraphNodeKind.ip => 'IP',
+    GraphNodeKind.domain => 'D',
+    GraphNodeKind.phone => 'P',
+    GraphNodeKind.file => 'F',
+    GraphNodeKind.platform => 'S',
+    GraphNodeKind.org => 'O',
+    GraphNodeKind.country => 'C',
+    GraphNodeKind.location => 'L',
+    GraphNodeKind.device => 'V',
+    GraphNodeKind.person => 'H',
+    GraphNodeKind.provider => 'M',
+    GraphNodeKind.infra => 'N',
+    GraphNodeKind.lead => '?',
+    GraphNodeKind.other => null,
+  };
 
   double _radius(_NodePos n) =>
       n.node.root ? 26 : math.min(12.0 + n.degree * 2.2, 30);
@@ -515,9 +584,8 @@ class _NodePanel extends StatelessWidget {
     required this.onSelect,
   });
 
-  List<GraphEdge> get _edges => graph.edges
-      .where((e) => e.from == node.id || e.to == node.id)
-      .toList();
+  List<GraphEdge> get _edges =>
+      graph.edges.where((e) => e.from == node.id || e.to == node.id).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -545,7 +613,10 @@ class _NodePanel extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -553,10 +624,11 @@ class _NodePanel extends StatelessWidget {
                 child: Text(
                   node.confidence.label.toUpperCase(),
                   style: TextStyle(
-                      color: color,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5),
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
               IconButton(
@@ -585,9 +657,11 @@ class _NodePanel extends StatelessWidget {
                             onSelect(e.from == node.id ? e.to : e.from),
                         child: Row(
                           children: [
-                            Icon(Icons.arrow_right,
-                                size: 16,
-                                color: confidenceColor(e.confidence)),
+                            Icon(
+                              Icons.arrow_right,
+                              size: 16,
+                              color: confidenceColor(e.confidence),
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(

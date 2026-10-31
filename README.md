@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/mel0k1/Anyway/actions/workflows/ci.yml"><img src="https://github.com/mel0k1/Anyway/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/mel0k1/Anyway/releases/latest"><img src="https://img.shields.io/github/v/release/mel0k1/Anyway?logo=github&label=release" alt="Release"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/Flutter-3.35%2B-02569B?logo=flutter&logoColor=white" alt="Flutter"/>
   <img src="https://img.shields.io/badge/Rust-1.85%2B-DEA584?logo=rust&logoColor=white" alt="Rust"/>
@@ -16,6 +17,19 @@
 </p>
 
 **Anyway** is a cross-platform OSINT workstation: a Flutter interface on top of a Rust investigation core. Point it at a username, email, IP address, domain, phone number or an image file — it detects the target type, runs the matching reconnaissance modules concurrently and keeps everything in a case you can export as Markdown or JSON.
+
+## Download
+
+Grab a prebuilt bundle from the [Releases](https://github.com/mel0k1/Anyway/releases) page:
+
+- **Linux** — unpack `anyway-linux-x64.tar.gz` and run `bundle/anyway`
+- **Windows** — unpack `anyway-windows-x64.zip` and run `anyway.exe`
+
+Every release is built straight from a version tag by CI, ships a `checksums.txt` and contains no installers or telemetry. Building from source is the same one-liner it always was:
+
+```sh
+flutter run -d linux   # or: flutter run -d windows
+```
 
 - **700+ sites** checked per username — the database merges curated entries from the [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) projects with status, message, presence and redirect heuristics plus WAF awareness
 - **Relationship graph** — every scan builds an interactive entity graph: platforms, emails, IPs, domains, providers, organizations, locations and device fingerprints as nodes, linked by what the modules actually proved. Pan, zoom and tap any node to trace its evidence chain
@@ -40,7 +54,15 @@
 
 ## Screenshots
 
-The interface is dark-first Material 3 Expressive: a navigation rail shell, wavy progress indicators per module, spring-driven motion and tonal surfaces. Screenshots will be added with the first release.
+| Dashboard | Scan in progress |
+| --- | --- |
+| ![Dashboard](docs/screenshots/01_dashboard.png) | ![Scan](docs/screenshots/02_scan.png) |
+| **Results with confidence tagging** | **Relationship graph** |
+| ![Results](docs/screenshots/03_results.png) | ![Graph](docs/screenshots/04_graph.png) |
+| **Modules** | **Settings and proxy** |
+| ![Modules](docs/screenshots/06_modules.png) | ![Settings](docs/screenshots/07_settings.png) |
+
+Dark-first Material 3 Expressive: a navigation rail shell, wavy progress indicators per module, spring-driven motion and tonal surfaces. The screenshots are rendered deterministically from demo data by `flutter test test/screenshots_test.dart --update-goldens`.
 
 ## Architecture
 
