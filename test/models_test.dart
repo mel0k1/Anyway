@@ -111,6 +111,88 @@ void main() {
     expect(plain.sites, isNull);
   });
 
+  test('snapshot parses graph payload with nodes and edges', () {
+    final snap = ScanSnapshot.fromJson({
+      'scanId': 'scan-4',
+      'target': {'kind': 'username', 'raw': 'mel0k1', 'normalized': 'mel0k1'},
+      'status': 'done',
+      'startedAt': 1,
+      'finishedAt': 2,
+      'modules': [],
+      'findings': [
+        {
+          'module_id': 'username.enumerate',
+          'category': 'social_profile',
+          'label': 'GitHub',
+          'value': 'https://github.com/mel0k1',
+          'confidence': 'high',
+        },
+      ],
+      'graph': {
+        'nodes': [
+          {
+            'id': 'Username:mel0k1',
+            'kind': 'username',
+            'label': 'mel0k1',
+            'confidence': 'high',
+            'sources': ['scan_target'],
+            'root': true,
+          },
+          {
+            'id': 'Platform:github',
+            'kind': 'platform',
+            'label': 'GitHub',
+            'confidence': 'high',
+            'sources': ['username.enumerate'],
+            'root': false,
+          },
+        ],
+        'edges': [
+          {
+            'from': 'Username:mel0k1',
+            'to': 'Platform:github',
+            'relation': 'profile_on',
+            'confidence': 'high',
+            'via': 'username.enumerate',
+          },
+        ],
+      },
+      'log': [],
+    });
+
+    expect(snap.graph.nodes, hasLength(2));
+    expect(snap.graph.edges, hasLength(1));
+    expect(snap.graph.nodes.first.root, isTrue);
+    expect(snap.graph.nodes[1].kind, GraphNodeKind.platform);
+    expect(snap.graph.edges.first.relation, 'profile_on');
+
+    final restored = ScanSnapshot.fromJson(snap.toJson());
+    expect(restored.graph.nodes, hasLength(2));
+    expect(restored.graph.edges.first.via, 'username.enumerate');
+  });
+
+  test('snapshot without graph falls back to empty', () {
+    final snap = ScanSnapshot.fromJson({
+      'scanId': 's',
+      'target': {'kind': 'username', 'raw': 'x', 'normalized': 'x'},
+      'status': 'running',
+      'startedAt': 1,
+      'modules': [],
+      'findings': [],
+      'log': [],
+    });
+    expect(snap.graph.nodes, isEmpty);
+    expect(snap.graph.edges, isEmpty);
+  });
+
+  test('confidence labels use confirmed taxonomy', () {
+    expect(Confidence.high.label, 'Confirmed');
+    expect(Confidence.medium.label, 'Questionable');
+    expect(Confidence.low.label, 'Unverified');
+    expect(ConfidenceX.fromName('high'), Confidence.high);
+    expect(ConfidenceX.fromName('bogus'), Confidence.medium);
+  });
+
   test('markdown report contains target and tables', () {
     final snap = ScanSnapshot.fromJson({
       'scanId': 'scan-2',
@@ -129,6 +211,35 @@ void main() {
           'confidence': 'high',
         },
       ],
+      'graph': {
+        'nodes': [
+          {
+            'id': 'Username:torvalds',
+            'kind': 'username',
+            'label': 'torvalds',
+            'confidence': 'high',
+            'sources': ['scan_target'],
+            'root': true,
+          },
+          {
+            'id': 'Platform:github',
+            'kind': 'platform',
+            'label': 'GitHub',
+            'confidence': 'high',
+            'sources': ['username.enumerate'],
+            'root': false,
+          },
+        ],
+        'edges': [
+          {
+            'from': 'Username:torvalds',
+            'to': 'Platform:github',
+            'relation': 'profile_on',
+            'confidence': 'high',
+            'via': 'username.enumerate',
+          },
+        ],
+      },
       'log': [],
     });
 
@@ -136,6 +247,70 @@ void main() {
     expect(md, contains('# Anyway report: torvalds'));
     expect(md, contains('## username.enumerate'));
     expect(md, contains('https://github.com/torvalds'));
-    expect(md, contains('high'));
+    expect(md, contains('| Confirmed |'));
+  });
+
+  test('markdown report embeds mermaid graph', () {
+    final snap = ScanSnapshot.fromJson({
+      'scanId': 'scan-5',
+      'target': {'kind': 'domain', 'raw': 'corp.io', 'normalized': 'corp.io'},
+      'status': 'done',
+      'startedAt': 1,
+      'modules': [],
+      'findings': [],
+      'graph': {
+        'nodes': [
+          {
+            'id': 'Domain:corp.io',
+            'kind': 'domain',
+            'label': 'corp.io',
+            'confidence': 'high',
+            'sources': ['scan_target'],
+            'root': true,
+          },
+          {
+            'id': 'Ip:93.184.216.34',
+            'kind': 'ip',
+            'label': '93.184.216.34',
+            'confidence': 'high',
+            'sources': ['domain.intel'],
+            'root': false,
+          },
+          {
+            'id': 'Domain:missing.io',
+            'kind': 'domain',
+            'label': 'missing.io',
+            'confidence': 'low',
+            'sources': ['ip.intel'],
+            'root': false,
+          },
+        ],
+        'edges': [
+          {
+            'from': 'Domain:corp.io',
+            'to': 'Ip:93.184.216.34',
+            'relation': 'resolves_to',
+            'confidence': 'high',
+            'via': 'domain.intel',
+          },
+          {
+            'from': 'Domain:corp.io',
+            'to': 'Domain:missing.io',
+            'relation': 'ptr_record',
+            'confidence': 'low',
+            'via': 'ip.intel',
+          },
+        ],
+      },
+      'log': [],
+    });
+
+    final md = ReportExporter.markdown(snap);
+    expect(md, contains('## Relationship graph'));
+    expect(md, contains('3 nodes · 2 links'));
+    expect(md, contains('```mermaid'));
+    expect(md, contains('-->|"resolves_to"|'));
+    expect(md, contains('ptr_record · unverified'));
+    expect(md, contains('classDef high'));
   });
 }

@@ -9,8 +9,9 @@ import '../widgets/finding_card.dart';
 
 class ResultsScreen extends StatefulWidget {
   final AppState state;
+  final void Function()? onOpenGraph;
 
-  const ResultsScreen({super.key, required this.state});
+  const ResultsScreen({super.key, required this.state, this.onOpenGraph});
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
@@ -84,6 +85,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 icon: const Icon(Icons.data_object),
                 label: const Text('JSON'),
               ),
+              const SizedBox(width: 12),
+              if (widget.onOpenGraph != null)
+                FilledButton.tonalIcon(
+                  onPressed: widget.onOpenGraph,
+                  icon: const Icon(Icons.hub),
+                  label: const Text('Graph'),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -121,11 +129,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 itemBuilder: (context) => [
                   const PopupMenuItem(value: null, child: Text('Any confidence')),
                   for (final c in Confidence.values)
-                    PopupMenuItem(value: c, child: Text(c.name)),
+                    PopupMenuItem(value: c, child: Text(c.label)),
                 ],
                 child: Chip(
                   avatar: Icon(Icons.verified, size: 16, color: scheme.primary),
-                  label: Text(_confidenceFilter?.name ?? 'confidence'),
+                  label: Text(_confidenceFilter?.label ?? 'confidence'),
                 ),
               ),
             ],

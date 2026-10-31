@@ -45,6 +45,7 @@ pub struct ScanHandle {
 impl ScanHandle {
     pub async fn snapshot(&self) -> serde_json::Value {
         let s = self.state.read().await;
+        let graph = crate::graph::build_graph(&s.targets, &s.findings);
         json!({
             "scanId": s.scan_id,
             "target": s.target,
@@ -54,6 +55,7 @@ impl ScanHandle {
             "finishedAt": s.finished_at,
             "modules": s.modules,
             "findings": s.findings,
+            "graph": graph,
             "log": s.log,
         })
     }

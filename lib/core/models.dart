@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+
 enum TargetKind {
   username,
   email,
@@ -34,6 +36,178 @@ enum TargetKind {
 }
 
 enum Confidence { high, medium, low }
+
+extension ConfidenceX on Confidence {
+  String get label => switch (this) {
+        Confidence.high => 'Confirmed',
+        Confidence.medium => 'Questionable',
+        Confidence.low => 'Unverified',
+      };
+
+  static Confidence fromName(String? name) => Confidence.values.firstWhere(
+        (c) => c.name == name,
+        orElse: () => Confidence.medium,
+      );
+}
+
+enum GraphNodeKind {
+  username,
+  email,
+  ip,
+  domain,
+  phone,
+  file,
+  platform,
+  org,
+  country,
+  location,
+  device,
+  person,
+  provider,
+  infra,
+  lead,
+  other;
+
+  static GraphNodeKind fromName(String? name) => GraphNodeKind.values.firstWhere(
+        (k) => k.name == name,
+        orElse: () => GraphNodeKind.other,
+      );
+
+  String get title => switch (this) {
+        username => 'Username',
+        email => 'Email',
+        ip => 'IP address',
+        domain => 'Domain',
+        phone => 'Phone',
+        file => 'File',
+        platform => 'Platform',
+        org => 'Organization',
+        country => 'Country',
+        location => 'Location',
+        device => 'Device',
+        person => 'Person',
+        provider => 'Mail provider',
+        infra => 'Infrastructure',
+        lead => 'Search lead',
+        other => 'Entity',
+      };
+
+  IconData get icon => switch (this) {
+        username => Icons.person,
+        email => Icons.mail,
+        ip => Icons.public,
+        domain => Icons.dns,
+        phone => Icons.call,
+        file => Icons.image,
+        platform => Icons.public,
+        org => Icons.corporate_fare,
+        country => Icons.flag,
+        location => Icons.place,
+        device => Icons.camera_alt,
+        person => Icons.face,
+        provider => Icons.alternate_email,
+        infra => Icons.lan,
+        lead => Icons.travel_explore,
+        other => Icons.circle,
+      };
+}
+
+class GraphNode {
+  final String id;
+  final GraphNodeKind kind;
+  final String label;
+  final Confidence confidence;
+  final List<String> sources;
+  final bool root;
+
+  const GraphNode({
+    required this.id,
+    required this.kind,
+    required this.label,
+    required this.confidence,
+    this.sources = const [],
+    this.root = false,
+  });
+
+  factory GraphNode.fromJson(Map<String, dynamic> j) => GraphNode(
+        id: j['id'] as String? ?? '',
+        kind: GraphNodeKind.fromName(j['kind'] as String?),
+        label: j['label'] as String? ?? '',
+        confidence: ConfidenceX.fromName(j['confidence'] as String?),
+        sources: ((j['sources'] as List?) ?? const [])
+            .map((e) => e as String)
+            .toList(),
+        root: j['root'] as bool? ?? false,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'kind': kind.name,
+        'label': label,
+        'confidence': confidence.name,
+        'sources': sources,
+        'root': root,
+      };
+}
+
+class GraphEdge {
+  final String from;
+  final String to;
+  final String relation;
+  final Confidence confidence;
+  final String via;
+
+  const GraphEdge({
+    required this.from,
+    required this.to,
+    required this.relation,
+    required this.confidence,
+    this.via = '',
+  });
+
+  factory GraphEdge.fromJson(Map<String, dynamic> j) => GraphEdge(
+        from: j['from'] as String? ?? '',
+        to: j['to'] as String? ?? '',
+        relation: j['relation'] as String? ?? '',
+        confidence: ConfidenceX.fromName(j['confidence'] as String?),
+        via: j['via'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'from': from,
+        'to': to,
+        'relation': relation,
+        'confidence': confidence.name,
+        'via': via,
+      };
+}
+
+class OsintGraph {
+  final List<GraphNode> nodes;
+  final List<GraphEdge> edges;
+
+  const OsintGraph({this.nodes = const [], this.edges = const []});
+
+  static const empty = OsintGraph();
+
+  int get nodeCount => nodes.length;
+
+  int get edgeCount => edges.length;
+
+  factory OsintGraph.fromJson(Map<String, dynamic> j) => OsintGraph(
+        nodes: ((j['nodes'] as List?) ?? const [])
+            .map((e) => GraphNode.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+        edges: ((j['edges'] as List?) ?? const [])
+            .map((e) => GraphEdge.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'nodes': nodes.map((n) => n.toJson()).toList(),
+        'edges': edges.map((e) => e.toJson()).toList(),
+      };
+}
 
 class Target {
   final TargetKind kind;
@@ -158,6 +332,7 @@ class ScanSnapshot {
   final int? finishedAt;
   final List<ModuleProgress> modules;
   final List<Finding> findings;
+  final OsintGraph graph;
   final List<String> log;
 
   const ScanSnapshot({
@@ -169,6 +344,7 @@ class ScanSnapshot {
     this.finishedAt,
     required this.modules,
     required this.findings,
+    this.graph = OsintGraph.empty,
     required this.log,
   });
 
@@ -191,6 +367,9 @@ class ScanSnapshot {
         findings: ((j['findings'] as List?) ?? const [])
             .map((e) => Finding.fromJson((e as Map).cast<String, dynamic>()))
             .toList(),
+        graph: j['graph'] is Map
+            ? OsintGraph.fromJson((j['graph'] as Map).cast<String, dynamic>())
+            : OsintGraph.empty,
         log: ((j['log'] as List?) ?? const []).map((e) => e as String).toList(),
       );
 
@@ -205,6 +384,7 @@ class ScanSnapshot {
             .map((m) => {'id': m.id, 'label': m.label, 'done': m.done, 'total': m.total, 'status': m.status, 'found': m.found})
             .toList(),
         'findings': findings.map((f) => f.toJson()).toList(),
+        'graph': graph.toJson(),
         'log': log,
       };
 }

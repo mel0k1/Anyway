@@ -38,7 +38,7 @@ class _FindingCardState extends State<FindingCard> {
   Color get _confidenceColor => switch (widget.finding.confidence) {
         Confidence.high => Colors.green.shade300,
         Confidence.medium => Colors.orange.shade300,
-        Confidence.low => Colors.red.shade300,
+        Confidence.low => Colors.blueGrey.shade300,
       };
 
   @override
@@ -78,7 +78,7 @@ class _FindingCardState extends State<FindingCard> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _ConfidenceChip(color: _confidenceColor, label: f.confidence.name),
+                _ConfidenceChip(color: _confidenceColor, label: f.confidence.label),
                 IconButton(
                   tooltip: 'Copy',
                   icon: const Icon(Icons.copy, size: 18),

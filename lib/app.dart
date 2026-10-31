@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/app_state.dart';
 import 'ui/screens/cases_screen.dart';
 import 'ui/screens/dashboard_screen.dart';
+import 'ui/screens/graph_screen.dart';
 import 'ui/screens/modules_screen.dart';
 import 'ui/screens/results_screen.dart';
 import 'ui/screens/scan_screen.dart';
@@ -46,6 +47,7 @@ class _ShellState extends State<Shell> {
     NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('Dashboard')),
     NavigationRailDestination(icon: Icon(Icons.radar_outlined), selectedIcon: Icon(Icons.radar), label: Text('Scan')),
     NavigationRailDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: Text('Results')),
+    NavigationRailDestination(icon: Icon(Icons.hub_outlined), selectedIcon: Icon(Icons.hub), label: Text('Graph')),
     NavigationRailDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: Text('Cases')),
     NavigationRailDestination(icon: Icon(Icons.grid_view_outlined), selectedIcon: Icon(Icons.grid_view), label: Text('Modules')),
     NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: Text('Settings')),
@@ -57,7 +59,8 @@ class _ShellState extends State<Shell> {
     final screens = <Widget>[
       DashboardScreen(state: state, onStartScan: () => setState(() => _index = 1)),
       ScanScreen(state: state, onOpenResults: () => setState(() => _index = 2)),
-      ResultsScreen(state: state),
+      ResultsScreen(state: state, onOpenGraph: () => setState(() => _index = 3)),
+      GraphScreen(state: state),
       CasesScreen(state: state, onOpenCase: () => setState(() => _index = 2)),
       ModulesScreen(state: state),
       SettingsScreen(state: state),

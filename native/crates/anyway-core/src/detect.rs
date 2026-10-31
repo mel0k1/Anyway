@@ -2,6 +2,10 @@ use crate::models::{Target, TargetKind};
 use std::net::IpAddr;
 use std::path::Path;
 
+pub fn is_ip_address(s: &str) -> bool {
+    s.parse::<IpAddr>().is_ok()
+}
+
 pub fn detect_target(query: &str) -> Target {
     let raw = query.trim().to_string();
     let normalized = raw.trim_start_matches('@').to_lowercase();

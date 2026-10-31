@@ -33,10 +33,53 @@ class ReportExporter {
       for (final f in entry.value) {
         final value = f.value.replaceAll('|', '\\|').replaceAll('\n', ' ');
         final url = (f.url ?? '').replaceAll('|', '\\|');
-        b.writeln('| ${f.label} | $value | ${f.confidence.name} | $url |');
+        b.writeln('| ${f.label} | $value | ${f.confidence.label} | $url |');
       }
       b.writeln();
     }
+    b.writeln(_graphSection(s.graph));
+    return b.toString();
+  }
+
+  static String _graphSection(OsintGraph g) {
+    if (g.nodes.isEmpty) return '';
+    final b = StringBuffer();
+    b.writeln('## Relationship graph');
+    b.writeln();
+    b.writeln('${g.nodes.length} nodes · ${g.edges.length} links');
+    b.writeln();
+    b.writeln('```mermaid');
+    b.writeln('graph LR');
+    final ids = <String, String>{};
+    for (var i = 0; i < g.nodes.length; i++) {
+      final n = g.nodes[i];
+      final alias = 'n$i';
+      ids[n.id] = alias;
+      final title = n.label
+          .replaceAll('"', "'")
+          .replaceAll(RegExp(r'[\[\]{}()<>|\\]'), ' ')
+          .trim();
+      b.writeln('  $alias["${n.kind.title}: $title"]:::${n.confidence.name}');
+    }
+    const maxEdges = 250;
+    for (final e in g.edges.take(maxEdges)) {
+      final from = ids[e.from];
+      final to = ids[e.to];
+      if (from == null || to == null) continue;
+      final label = e.confidence == Confidence.high
+          ? e.relation
+          : '${e.relation} · ${e.confidence.label.toLowerCase()}';
+      b.writeln(
+          '  $from -->|"${label.replaceAll('"', "'")}"| $to');
+    }
+    if (g.edges.length > maxEdges) {
+      b.writeln('  note["... ${g.edges.length - maxEdges} more links omitted"]');
+    }
+    b.writeln('  classDef high fill:#1b5e20,stroke:#4caf50,color:#ffffff');
+    b.writeln('  classDef medium fill:#5d4037,stroke:#ffb300,color:#ffffff');
+    b.writeln('  classDef low fill:#37474f,stroke:#90a4ae,color:#ffffff');
+    b.writeln('```');
+    b.writeln();
     return b.toString();
   }
 

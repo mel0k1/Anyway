@@ -18,6 +18,9 @@
 **Anyway** is a cross-platform OSINT workstation: a Flutter interface on top of a Rust investigation core. Point it at a username, email, IP address, domain, phone number or an image file — it detects the target type, runs the matching reconnaissance modules concurrently and keeps everything in a case you can export as Markdown or JSON.
 
 - **700+ sites** checked per username — the database merges curated entries from the [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) projects with status, message, presence and redirect heuristics plus WAF awareness
+- **Relationship graph** — every scan builds an interactive entity graph: platforms, emails, IPs, domains, providers, organizations, locations and device fingerprints as nodes, linked by what the modules actually proved. Pan, zoom and tap any node to trace its evidence chain
+- **Confidence tagging** — each finding and graph node carries a trust level: **Confirmed** (explicit marker or authoritative API), **Questionable** (status or redirect heuristics) and **Unverified** (detection that failed calibration)
+- **Anti-false-positive calibration** — before trusting a heuristic hit, Anyway re-probes the same platform with a random nonce username; sites that report random names as taken (or serve identical bodies for everyone) are automatically downgraded to Unverified, and WAF-challenged answers never produce findings
 - **Multiple targets in one scan** — separate them with commas: `user1, user2, example.org`
 - **Proxy & Tor** — route every request through `http`, `https`, `socks5` or `socks5h` (one click for a local Tor daemon), with a hard fail instead of a silent fallback if the proxy is invalid
 - **Search dorks** — every scan ends with one-click deep links for Google, Bing, DuckDuckGo, Yandex, GitHub, Pastebin, Shodan, Censys, VirusTotal, Wayback and more, preloaded with the target
@@ -43,19 +46,20 @@ The interface is dark-first Material 3 Expressive: a navigation rail shell, wavy
 
 ```
 ┌─────────────────────────────┐
-│ Flutter (Material 3E)       │  UI, cases, reports
+│ Flutter (Material 3E)       │  UI, graph view, cases, reports
 └────────────┬────────────────┘
              │ dart:ffi · JSON over C ABI
 ┌────────────┴────────────────┐
 │ anyway-ffi                  │  scan manager, polling API
 ├─────────────────────────────┤
 │ anyway-core                 │  Tokio engine, module registry
-│  username · email · ip      │
+│  username · email · ip      │  graph builder, confidence model
 │  domain · phone · exif      │
 └─────────────────────────────┘
 ```
 
 - The Rust core owns the network: a Tokio engine fans every module out concurrently with a shared client, per-module progress and cancellation.
+- Every snapshot ships a `graph` object — nodes and typed, confidence-scored edges derived from the findings, so the UI and exports always agree with the core.
 - The FFI surface is a small C ABI (`anyway_scan_start` / `anyway_scan_poll` / `anyway_scan_cancel`) speaking JSON — no codegen, no magic.
 - CMake invokes Cargo during the Flutter build, so `flutter run -d linux` builds the native core automatically.
 - Every finished scan is archived as a case under the app support directory.
