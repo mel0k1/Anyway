@@ -45,42 +45,14 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   late int _index = widget.initialIndex;
 
-  static const _destinations = [
-    NavigationRailDestination(
-      icon: Icon(Icons.dashboard_outlined),
-      selectedIcon: Icon(Icons.dashboard),
-      label: Text('Dashboard'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.radar_outlined),
-      selectedIcon: Icon(Icons.radar),
-      label: Text('Scan'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.fact_check_outlined),
-      selectedIcon: Icon(Icons.fact_check),
-      label: Text('Results'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.hub_outlined),
-      selectedIcon: Icon(Icons.hub),
-      label: Text('Graph'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.folder_outlined),
-      selectedIcon: Icon(Icons.folder),
-      label: Text('Cases'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.grid_view_outlined),
-      selectedIcon: Icon(Icons.grid_view),
-      label: Text('Modules'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.settings_outlined),
-      selectedIcon: Icon(Icons.settings),
-      label: Text('Settings'),
-    ),
+  static const _sections = [
+    (Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
+    (Icons.radar_outlined, Icons.radar, 'Scan'),
+    (Icons.fact_check_outlined, Icons.fact_check, 'Results'),
+    (Icons.hub_outlined, Icons.hub, 'Graph'),
+    (Icons.folder_outlined, Icons.folder, 'Cases'),
+    (Icons.grid_view_outlined, Icons.grid_view, 'Modules'),
+    (Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
 
   @override
@@ -103,37 +75,17 @@ class _ShellState extends State<Shell> {
     ];
 
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          ListenableBuilder(
-            listenable: state,
-            builder: (context, _) => NavigationRail(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              extended: MediaQuery.of(context).size.width >= 1280,
-              minExtendedWidth: 200,
-              leading: Padding(
-                padding: const EdgeInsets.only(top: 20, bottom: 16),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.travel_explore,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              destinations: _destinations,
-            ),
+          _TopBar(
+            index: _index,
+            dark: state.darkTheme,
+            onSelect: (i) => setState(() => _index = i),
+            onToggleTheme: () => state.setDarkTheme(!state.darkTheme),
           ),
-          const VerticalDivider(width: 1, thickness: 1),
           Expanded(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 260),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, anim) => FadeTransition(
@@ -155,6 +107,200 @@ class _ShellState extends State<Shell> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TopBar extends StatelessWidget {
+  final int index;
+  final bool dark;
+  final ValueChanged<int> onSelect;
+  final VoidCallback onToggleTheme;
+
+  const _TopBar({
+    required this.index,
+    required this.dark,
+    required this.onSelect,
+    required this.onToggleTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final wide = MediaQuery.of(context).size.width >= 1240;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.10),
+            offset: const Offset(0, 2),
+            blurRadius: 18,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 78,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 14, 0),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.asset(
+                    'assets/brand/icon-256.png',
+                    width: 46,
+                    height: 46,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                if (wide)
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Anyway',
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      Text(
+                        'OSINT workstation',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          letterSpacing: 0.7,
+                        ),
+                      ),
+                    ],
+                  ),
+                const Spacer(),
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final (i, section) in _ShellState._sections.indexed)
+                          _NavPill(
+                            icon: section.$1,
+                            activeIcon: section.$2,
+                            label: section.$3,
+                            selected: i == index,
+                            onTap: () => onSelect(i),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: dark ? 'Switch to light theme' : 'Switch to dark theme',
+                  onPressed: onToggleTheme,
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                      key: ValueKey(dark),
+                      size: 22,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavPill extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavPill({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(26),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutBack,
+          padding: EdgeInsets.symmetric(
+            horizontal: selected ? 18 : 15,
+            vertical: 13,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.secondaryContainer
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                transitionBuilder: (child, anim) =>
+                    ScaleTransition(scale: anim, child: child),
+                child: Icon(
+                  selected ? activeIcon : icon,
+                  key: ValueKey(selected),
+                  size: 22,
+                  color: selected
+                      ? scheme.onSecondaryContainer
+                      : scheme.onSurfaceVariant,
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.centerLeft,
+                child: selected
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 9),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                            color: scheme.onSecondaryContainer,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

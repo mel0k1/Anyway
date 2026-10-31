@@ -24,6 +24,7 @@ class AppTheme {
       colorScheme: scheme,
       fontFamily: family,
       scaffoldBackgroundColor: scheme.surface,
+      splashFactory: InkSparkle.splashFactory,
       cardTheme: CardThemeData(
         elevation: 0,
         color: scheme.surfaceContainerLow,
@@ -35,7 +36,11 @@ class AppTheme {
           minimumSize: const Size(0, 52),
           padding: const EdgeInsets.symmetric(horizontal: 28),
           shape: const StadiumBorder(),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          textStyle: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            fontFamily: family,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -44,6 +49,11 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           shape: const StadiumBorder(),
           side: BorderSide(color: scheme.outlineVariant),
+          textStyle: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            fontFamily: family,
+          ),
         ),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
@@ -86,22 +96,25 @@ class AppTheme {
           vertical: 18,
         ),
       ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: scheme.surfaceContainerLow,
-        indicatorColor: scheme.secondaryContainer,
-        selectedIconTheme: IconThemeData(color: scheme.onSecondaryContainer),
-        selectedLabelTextStyle: TextStyle(
-          color: scheme.onSurface,
-          fontWeight: FontWeight.w700,
-          fontFamily: family,
-        ),
-        unselectedLabelTextStyle: TextStyle(
-          color: scheme.onSurfaceVariant,
-          fontFamily: family,
-        ),
-      ),
-      sliderTheme: const SliderThemeData(
+      sliderTheme: SliderThemeData(
         showValueIndicator: ShowValueIndicator.onDrag,
+        trackHeight: 8,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+        valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
+        linearTrackColor: scheme.surfaceContainerHighest,
+        circularTrackColor: scheme.surfaceContainerHighest,
+        strokeCap: StrokeCap.round,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? scheme.onPrimary
+              : scheme.outline,
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -111,6 +124,25 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         shape: shapeXL,
         backgroundColor: scheme.surfaceContainerHigh,
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(shapeXL),
+          elevation: const WidgetStatePropertyAll(8),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(vertical: 8),
+          ),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(shapeXL),
+          elevation: const WidgetStatePropertyAll(8),
+        ),
       ),
     );
   }

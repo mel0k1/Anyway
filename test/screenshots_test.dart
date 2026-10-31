@@ -57,9 +57,9 @@ List<ModuleInfo> _demoModules() => [
   _module(
     'username.enumerate',
     'Username Enumeration',
-    'Probes 700+ social, developer, forum and gaming platforms with marker, status, redirect heuristics and nonce calibration against false positives',
+    'Probes 1,100+ social, developer, forum, gaming and dating platforms merged from the built-in and WhatsMyName databases with marker, status, redirect heuristics and nonce calibration against false positives',
     [TargetKind.username],
-    sites: 706,
+    sites: 1123,
   ),
   _module(
     'username.enrich',
@@ -418,9 +418,9 @@ ScanSnapshot _doneSnapshot() {
     modules: const [
       ModuleProgress(
         id: 'username.enumerate',
-        label: '706 sites · 24 workers',
-        done: 706,
-        total: 706,
+        label: '1123 sites · 24 workers',
+        done: 1123,
+        total: 1123,
         status: 'done',
         found: 5,
       ),
@@ -453,13 +453,13 @@ ScanSnapshot _doneSnapshot() {
     graph: _demoGraph(),
     log: const [
       '12:03:01 scan started · 2 targets · proxy socks5h://127.0.0.1:9050',
-      '12:03:01 module username.enumerate · 706 sites · 24 workers',
+      '12:03:01 module username.enumerate · 1123 sites · 24 workers',
       '12:03:04 hit github.com/jane-doe-1990 · 200 · marker matched',
       '12:03:05 hit reddit.com/user/jane_doe_1990 · 200 · marker matched',
       '12:03:09 hit mastodon.social/@jane_doe_1990 · 200 · soft marker',
       '12:03:14 hit news.ycombinator.com/user?id=janedoe1990 · 200',
       '12:03:18 hit keybase.io/janedoe1990 · 200 · nonce check pending',
-      '12:03:31 username.enumerate done · 706 checked · 5 hits · 683 empty',
+      '12:03:31 username.enumerate done · 1123 checked · 5 hits · 1118 empty',
       '12:03:32 module username.enrich · resolving 5 profiles',
       '12:03:40 github api · Jane D. · Berlin · 412 followers',
       '12:03:47 gravatar resolved · jane.doe.1990@proton.me',
@@ -481,9 +481,9 @@ ScanSnapshot _runningSnapshot() {
     modules: const [
       ModuleProgress(
         id: 'username.enumerate',
-        label: '706 sites · 24 workers',
-        done: 706,
-        total: 706,
+        label: '1123 sites · 24 workers',
+        done: 1123,
+        total: 1123,
         status: 'done',
         found: 5,
       ),
@@ -515,13 +515,13 @@ ScanSnapshot _runningSnapshot() {
     findings: _demoFindings().take(3).toList(),
     log: const [
       '12:03:01 scan started · 2 targets · proxy socks5h://127.0.0.1:9050',
-      '12:03:01 module username.enumerate · 706 sites · 24 workers',
+      '12:03:01 module username.enumerate · 1123 sites · 24 workers',
       '12:03:04 hit github.com/jane-doe-1990 · 200 · marker matched',
       '12:03:05 hit reddit.com/user/jane_doe_1990 · 200 · marker matched',
       '12:03:09 hit mastodon.social/@jane_doe_1990 · 200 · soft marker',
       '12:03:14 hit news.ycombinator.com/user?id=janedoe1990 · 200',
       '12:03:18 hit keybase.io/janedoe1990 · 200 · nonce check pending',
-      '12:03:31 username.enumerate done · 706 checked · 5 hits · 683 empty',
+      '12:03:31 username.enumerate done · 1123 checked · 5 hits · 1118 empty',
       '12:03:32 module username.enrich · resolving 5 profiles',
       '12:03:40 github api · Jane D. · Berlin · 412 followers',
       '12:03:47 gravatar resolved · jane.doe.1990@proton.me',
@@ -569,6 +569,9 @@ Future<void> _pump(WidgetTester tester, AppState state, {int index = 0}) async {
   tester.view.devicePixelRatio = 2.0;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(AnywayApp(state: state, initialIndex: index));
+  await tester.runAsync(() async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  });
   await tester.pump(const Duration(milliseconds: 450));
 }
 

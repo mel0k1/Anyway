@@ -394,7 +394,7 @@ TargetKind detectTargetKind(String query) {
   final q = first.replaceFirst(RegExp(r'^@+'), '');
   if (q.isEmpty) return TargetKind.unknown;
   final email = RegExp(r'^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
-  final domain = RegExp(r'^(?=.{4,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$');
+  final domain = RegExp(r'^(?=.{4,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$');
   final phone = RegExp(r'^\+?[0-9 ()\-.]{7,16}$');
   if (InternetAddress.tryParse(q) != null) return TargetKind.ipAddress;
   if (email.hasMatch(q)) return TargetKind.email;
