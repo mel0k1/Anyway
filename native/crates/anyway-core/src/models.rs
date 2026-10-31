@@ -57,6 +57,10 @@ pub struct ScanOptions {
     pub proxy: String,
     pub hibp_api_key: String,
     pub enabled_modules: Vec<String>,
+    pub pivot: bool,
+    pub pivot_depth: u32,
+    pub pivot_budget: u32,
+    pub long_tail: bool,
 }
 
 impl Default for ScanOptions {
@@ -68,6 +72,10 @@ impl Default for ScanOptions {
             proxy: String::new(),
             hibp_api_key: String::new(),
             enabled_modules: Vec::new(),
+            pivot: false,
+            pivot_depth: 2,
+            pivot_budget: 8,
+            long_tail: false,
         }
     }
 }
@@ -78,6 +86,15 @@ impl ScanOptions {
         let (scheme, _) = p.split_once("://")?;
         Some(scheme.to_ascii_lowercase())
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PivotLink {
+    pub parent: String,
+    pub parent_kind: TargetKind,
+    pub child: Target,
+    pub depth: u32,
+    pub via: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

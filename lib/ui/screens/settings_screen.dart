@@ -132,6 +132,80 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         _Section(
+          title: 'Pivoting',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Recursive pivoting'),
+                subtitle: const Text(
+                  'Automatically scan entities discovered mid-scan: exposed emails, alt handles, resolved IPs, subdomains and linked domains. Only confirmed or questionable leads are followed',
+                ),
+                secondary: const Icon(Icons.hub),
+                value: state.pivotEnabled,
+                onChanged: state.setPivotEnabled,
+              ),
+              Row(
+                children: [
+                  const SizedBox(width: 160, child: Text('Pivot depth')),
+                  Expanded(
+                    child: Slider(
+                      min: 1,
+                      max: 4,
+                      divisions: 3,
+                      label: '${state.pivotDepth} wave${state.pivotDepth == 1 ? '' : 's'}',
+                      value: state.pivotDepth.toDouble(),
+                      onChanged: state.pivotEnabled ? (v) => state.setPivotDepth(v.round()) : null,
+                    ),
+                  ),
+                  SizedBox(width: 40, child: Text('${state.pivotDepth}')),
+                ],
+              ),
+              Row(
+                children: [
+                  const SizedBox(width: 160, child: Text('Pivot budget')),
+                  Expanded(
+                    child: Slider(
+                      min: 2,
+                      max: 16,
+                      divisions: 14,
+                      label: '${state.pivotBudget} entities',
+                      value: state.pivotBudget.toDouble(),
+                      onChanged: state.pivotEnabled ? (v) => state.setPivotBudget(v.round()) : null,
+                    ),
+                  ),
+                  SizedBox(width: 40, child: Text('${state.pivotBudget}')),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _Section(
+          title: 'Database',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Long-tail database (Maigret)'),
+                subtitle: const Text(
+                  'Adds thousands of forum, wiki, gamedev and community sites from the Maigret database on top of the core set. Scans take noticeably longer but reach far deeper',
+                ),
+                secondary: const Icon(Icons.travel_explore),
+                value: state.longTail,
+                onChanged: state.setLongTail,
+              ),
+              Text(
+                state.longTail
+                    ? 'Username module will probe the full merged database'
+                    : 'Username module will probe the core database only',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        _Section(
           title: 'Breach lookup',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

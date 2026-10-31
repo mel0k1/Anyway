@@ -69,6 +69,10 @@ class RustCore {
     String? proxy,
     String? hibpApiKey,
     List<String>? modules,
+    bool pivot = false,
+    int pivotDepth = 2,
+    int pivotBudget = 8,
+    bool longTail = false,
   }) =>
       _call(() {
         final f = lib.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>), Pointer<Utf8> Function(Pointer<Utf8>)>(
@@ -82,6 +86,10 @@ class RustCore {
             'proxy': proxy ?? '',
             'hibp_api_key': hibpApiKey ?? '',
             'enabled_modules': modules ?? const <String>[],
+            'pivot': pivot,
+            'pivot_depth': pivotDepth,
+            'pivot_budget': pivotBudget,
+            'long_tail': longTail,
           },
         });
         final ptr = body.toNativeUtf8();

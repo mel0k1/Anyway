@@ -641,6 +641,7 @@ class _NodePanel extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '${node.kind.title} · ${_edges.length} link${_edges.length == 1 ? '' : 's'}'
+            '${node.sources.contains('pivot') ? ' · discovered by pivoting' : ''}'
             '${node.sources.isEmpty ? '' : ' · via ${node.sources.join(', ')}'}',
             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
           ),
@@ -687,8 +688,11 @@ class _NodePanel extends StatelessWidget {
   String _labelOf(String id) =>
       graph.nodes.where((n) => n.id == id).firstOrNull?.label ?? id;
 
-  String _prettyRelation(String relation) => relation
-      .split('_')
-      .map((w) => w.isEmpty ? w : '${w[0]}${w.substring(1)}')
-      .join(' ');
+  String _prettyRelation(String relation) => switch (relation) {
+        'pivot' => 'pivoted scan',
+        _ => relation
+            .split('_')
+            .map((w) => w.isEmpty ? w : '${w[0]}${w.substring(1)}')
+            .join(' '),
+      };
 }

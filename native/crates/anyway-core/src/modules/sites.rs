@@ -70,14 +70,29 @@ pub const DEFAULT_UNKNOWN_CODES: &[u16] = &[403, 429, 503];
 
 pub const SITES_JSON: &str = include_str!("sites.json");
 pub const WMN_JSON: &str = include_str!("wmn-data.json");
+pub const MAIGRET_JSON: &str = include_str!("maigret-data.json");
 
 pub fn sites() -> &'static Vec<Site> {
     static SITES: OnceLock<Vec<Site>> = OnceLock::new();
-    SITES.get_or_init(|| merge_databases(builtin_sites(), wmn_sites()))
+    SITES.get_or_init(|| merge_databases(builtin_sites(), wmn_sites(), maigret_sites()))
+}
+
+pub fn core_site_count() -> usize {
+    sites().iter().filter(|s| s.source != "maigret").count()
+}
+
+pub fn maigret_site_count() -> usize {
+    sites().iter().filter(|s| s.source == "maigret").count()
 }
 
 pub fn builtin_sites() -> Vec<Site> {
     let defs: Vec<SiteDef> = serde_json::from_str(SITES_JSON).expect("embedded sites.json");
+    defs.into_iter().filter_map(compiled).collect()
+}
+
+pub fn maigret_sites() -> Vec<Site> {
+    let defs: Vec<SiteDef> =
+        serde_json::from_str(MAIGRET_JSON).expect("embedded maigret-data.json");
     defs.into_iter().filter_map(compiled).collect()
 }
 
@@ -277,9 +292,18 @@ fn detection_rank(site: &Site) -> u8 {
     }
 }
 
-fn merge_databases(builtin: Vec<Site>, wmn: Vec<Site>) -> Vec<Site> {
+fn source_rank(source: &str) -> u8 {
+    match source {
+        "builtin" => 2,
+        "wmn" => 1,
+        _ => 0,
+    }
+}
+
+fn merge_databases(builtin: Vec<Site>, wmn: Vec<Site>, maigret: Vec<Site>) -> Vec<Site> {
     let mut candidates: Vec<Site> = builtin;
     candidates.extend(wmn);
+    candidates.extend(maigret);
 
     let mut slot_best: HashMap<String, (u8, usize)> = HashMap::new();
     for (index, site) in candidates.iter().enumerate() {
@@ -293,13 +317,14 @@ fn merge_databases(builtin: Vec<Site>, wmn: Vec<Site>) -> Vec<Site> {
         }
     }
 
-    let mut url_best: HashMap<String, (u8, std::cmp::Reverse<usize>, usize)> = HashMap::new();
+    let mut url_best: HashMap<String, (u8, u8, std::cmp::Reverse<usize>, usize)> = HashMap::new();
     for (index, site) in candidates.iter().enumerate() {
         if slot_best.get(&slot_of(site)).map(|(_, i)| *i) != Some(index) {
             continue;
         }
         let candidate = (
             detection_rank(site),
+            source_rank(&site.source),
             std::cmp::Reverse(site.name.len()),
             index,
         );
@@ -316,7 +341,7 @@ fn merge_databases(builtin: Vec<Site>, wmn: Vec<Site>) -> Vec<Site> {
         let slot_winner = slot_best.get(&slot_of(&site)).map(|(_, i)| *i) == Some(index);
         let url_winner = url_best
             .get(&probe_key(&site))
-            .map(|(_, _, i)| *i)
+            .map(|(_, _, _, i)| *i)
             .is_none_or(|i| i == index);
         if slot_winner && url_winner {
             out.push(site);
@@ -422,8 +447,8 @@ mod tests {
     fn embedded_databases_load() {
         let all = sites();
         assert!(
-            all.len() >= 1000,
-            "expected merged site database above 1000, got {}",
+            all.len() >= 3000,
+            "expected merged site database above 3000, got {}",
             all.len()
         );
         for s in all.iter() {
@@ -434,7 +459,7 @@ mod tests {
                 s.name
             );
             assert!(
-                s.source == "builtin" || s.source == "wmn",
+                s.source == "builtin" || s.source == "wmn" || s.source == "maigret",
                 "site {} has unknown source {}",
                 s.name,
                 s.source
@@ -452,10 +477,12 @@ mod tests {
     fn merged_database_unions_both_sources() {
         let builtin = builtin_sites();
         let wmn = wmn_sites();
+        let maigret = maigret_sites();
         assert!(builtin.len() >= 650, "builtin {}", builtin.len());
         assert!(wmn.len() >= 600, "wmn {}", wmn.len());
+        assert!(maigret.len() >= 6000, "maigret {}", maigret.len());
         let all = sites();
-        assert_eq!(all.len(), merge_databases(builtin, wmn).len());
+        assert_eq!(all.len(), merge_databases(builtin, wmn, maigret).len());
         let names: Vec<&str> = all.iter().map(|s| s.name.as_str()).collect();
         for key in [
             "GitHub (User)",
@@ -470,6 +497,22 @@ mod tests {
         }
         assert!(all.iter().any(|s| s.source == "builtin"));
         assert!(all.iter().any(|s| s.source == "wmn"));
+        assert!(all.iter().any(|s| s.source == "maigret"));
+    }
+
+    #[test]
+    fn core_database_is_independent_of_long_tail() {
+        let core = core_site_count();
+        let total = sites().len();
+        assert!(core >= 1000, "core sites {core}");
+        assert!(total > core, "long tail must extend the core database");
+        assert_eq!(core + maigret_site_count(), total);
+        let sample = sites()
+            .iter()
+            .find(|s| s.source == "maigret" && s.name == "0-3.RU")
+            .expect("expected the 0-3.RU forum from the maigret long tail");
+        assert!(sample.url.contains("{}"));
+        assert!(matches!(&sample.kind, DetectKind::Message { absent, .. } if !absent.is_empty()));
     }
 
     #[test]

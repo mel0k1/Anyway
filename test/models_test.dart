@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:anyway/core/models.dart';
 import 'package:anyway/core/report_exporter.dart';
@@ -110,6 +112,73 @@ void main() {
       'accepts': ['ip_address'],
     });
     expect(plain.sites, isNull);
+  });
+
+  test('module info carries core site count', () {
+    final m = ModuleInfo.fromJson({
+      'id': 'username.enumerate',
+      'name': 'Username Enumeration',
+      'description': 'Probes sites',
+      'accepts': ['username'],
+      'sites': 7966,
+      'coreSites': 1112,
+    });
+    expect(m.sites, 7966);
+    expect(m.coreSites, 1112);
+  });
+
+  test('snapshot parses pivot links and roundtrips them', () {
+    final snap = ScanSnapshot.fromJson({
+      'scanId': 's1',
+      'target': {'kind': 'username', 'raw': 'mel0k1', 'normalized': 'mel0k1'},
+      'status': 'done',
+      'startedAt': 1,
+      'modules': [],
+      'findings': [],
+      'graph': {'nodes': [], 'edges': []},
+      'pivots': [
+        {
+          'parent': 'mel0k1',
+          'parent_kind': 'username',
+          'child': {'kind': 'email', 'raw': 'jane@corp.io', 'normalized': 'jane@corp.io'},
+          'depth': 1,
+          'via': 'enrich.api',
+        },
+        {
+          'parent': 'corp.io',
+          'parent_kind': 'domain',
+          'child': {'kind': 'ip_address', 'raw': '8.8.8.8', 'normalized': '8.8.8.8'},
+          'depth': 2,
+          'via': 'domain.intel',
+        },
+      ],
+      'log': [],
+    });
+    expect(snap.pivots.length, 2);
+    expect(snap.pivots[0].parent, 'mel0k1');
+    expect(snap.pivots[0].parentKind, TargetKind.username);
+    expect(snap.pivots[0].child.kind, TargetKind.email);
+    expect(snap.pivots[0].depth, 1);
+    expect(snap.pivots[1].child.kind, TargetKind.ipAddress);
+    expect(snap.pivots[1].depth, 2);
+
+    final round = ScanSnapshot.fromJson(jsonDecode(jsonEncode(snap.toJson())) as Map<String, dynamic>);
+    expect(round.pivots.length, 2);
+    expect(round.pivots[0].child.raw, 'jane@corp.io');
+    expect(round.pivots[1].parentKind, TargetKind.domain);
+  });
+
+  test('snapshot without pivots keeps empty list', () {
+    final snap = ScanSnapshot.fromJson({
+      'scanId': 's2',
+      'target': {'kind': 'username', 'raw': 'x', 'normalized': 'x'},
+      'status': 'done',
+      'startedAt': 1,
+      'modules': [],
+      'findings': [],
+      'log': [],
+    });
+    expect(snap.pivots, isEmpty);
   });
 
   test('snapshot parses graph payload with nodes and edges', () {

@@ -31,7 +31,8 @@ Every release is built straight from a version tag by CI, ships a `checksums.txt
 flutter run -d linux   # or: flutter run -d windows
 ```
 
-- **1,100+ sites** checked per username — the merged database combines the curated built-in list (Sherlock and Maigret heritage) with the community-vetted [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) set across social, gaming, coding, dating, forum and art platforms, all with status, message, presence and redirect heuristics plus WAF awareness
+- **1,100+ core sites, up to 7,900+ with the long tail** — the merged database combines the curated built-in list (Sherlock heritage) with the community-vetted [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) set, and a toggle in Settings adds the [Maigret](https://github.com/soxoj/maigret) long tail of thousands of Discourse, XenForo, phpBB, MediaWiki, Gitea and uCoz communities — all probed with status, message, presence and redirect heuristics plus WAF awareness
+- **Recursive pivoting** — when a scan discovers a new entity (an exposed email, an alt handle, a resolved IP, a subdomain or a linked domain), Anyway automatically queues it as the next scan target, up to a configurable depth and budget; only Confirmed and Questionable leads are followed, role accounts, mail providers and reserved IPs are ignored, and every pivot is drawn in the graph with its provenance
 - **Email → linked accounts** — registration, login and password-recovery probes across 20 popular services (GitHub, Discord, Spotify, Twitter/X, Proton, Mail.ru, Firefox, Nike, Pinterest and more), ported from the holehe technique, reveal which accounts hang off an address
 - **Breach intel** — Have I Been Pwned lookup lists every breach that exposed the address with dates, record counts and data classes (bring your own free API key, stored locally in Settings)
 - **Relationship graph** — every scan builds an interactive entity graph: platforms, emails, IPs, domains, providers, organizations, locations and device fingerprints as nodes, linked by what the modules actually proved. Pan, zoom and tap any node to trace its evidence chain
@@ -45,7 +46,7 @@ flutter run -d linux   # or: flutter run -d windows
 
 | Module | Target | What it does |
 | --- | --- | --- |
-| `username.enumerate` | Username | Probes **1,123 platforms** (built-in + WhatsMyName) with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness |
+| `username.enumerate` | Username | Probes the merged platform database — **1,100+ core sites, 7,900+ with the Maigret long tail** — with status / message / presence / redirect heuristics, per-site regex validation, rate-limit and WAF awareness |
 | `username.enrich` | Username | Official API lookups: GitHub, Reddit, Hacker News, Dev.to, Keybase, Bluesky, Mastodon, Telegram channels, Steam profiles |
 | `search.dorks` | Username, email, IP, domain, phone | Prebuilt deep links: search engines, code hosts, paste sites and intel portals (Shodan, Censys, VirusTotal, crt.sh, Wayback, Truecaller…) |
 | `email.recon` | Email | Syntax + MX validation over DoH, disposable and provider detection, Gravatar avatar & profile resolution |
@@ -133,13 +134,14 @@ linux/ windows/           desktop runners wired to Cargo
 
 ## Roadmap
 
-A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). The first P0 items from that comparison are landed: email → registered accounts probing, breach intel and a self-contained HTML report with the embedded graph.
+A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Landed so far: email → registered accounts probing, breach intel, a self-contained HTML report with the embedded graph, recursive graph pivoting and the Maigret long-tail database.
 
 ## Credits
 
 - [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) by Micah Hoffman (WebBreacher) and the OSINT community — the bundled `wmn-data.json` snapshot (`native/crates/anyway-core/src/modules/`) is distributed unmodified under the [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) license and merged into the username database at build time.
-- [holehe](https://github.com/megadose/holehe) by megadose — registration-probe endpoints adapted for the Email Accounts module.
-- [Sherlock](https://github.com/sherlock-project/sherlock) and [Maigret](https://github.com/soxoj/maigret) — heritage of curated site entries and detection heuristics.
+- [h[holehe](https://github.com/megadose/holehe) by megadose — registration-probe endpoints adapted for the Email Accounts module.
+- [Maigret](https://github.com/soxoj/maigret) by soxoj and contributors — the bundled `maigret-data.json` long-tail snapshot (converted from upstream `data.json`, engine templates expanded) is merged into the username database when the long-tail toggle is enabled.
+- [Sherlock](https://github.com/sherlock-project/sherlock) — heritage of curated site entries and detection heuristics.
 
 ## Disclaimer
 

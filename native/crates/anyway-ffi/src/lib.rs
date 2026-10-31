@@ -46,6 +46,7 @@ pub extern "C" fn anyway_version() -> *mut c_char {
 #[no_mangle]
 pub extern "C" fn anyway_module_list() -> *mut c_char {
     let site_count = anyway_core::modules::sites::sites().len() as u64;
+    let core_count = anyway_core::modules::sites::core_site_count() as u64;
     let account_site_count = anyway_core::modules::email_accounts::SITES.len() as u64;
     let modules: Vec<serde_json::Value> = registry()
         .iter()
@@ -59,6 +60,7 @@ pub extern "C" fn anyway_module_list() -> *mut c_char {
             });
             if d.id == "username.enumerate" {
                 entry["sites"] = json!(site_count);
+                entry["coreSites"] = json!(core_count);
             }
             if d.id == "email.accounts" {
                 entry["sites"] = json!(account_site_count);
@@ -66,7 +68,12 @@ pub extern "C" fn anyway_module_list() -> *mut c_char {
             entry
         })
         .collect();
-    to_ptr(json!({"ok": true, "modules": modules, "sites": site_count}))
+    to_ptr(json!({
+        "ok": true,
+        "modules": modules,
+        "sites": site_count,
+        "coreSites": core_count,
+    }))
 }
 
 #[no_mangle]

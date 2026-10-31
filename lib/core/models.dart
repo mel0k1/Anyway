@@ -276,6 +276,7 @@ class ModuleInfo {
   final String description;
   final List<TargetKind> accepts;
   final int? sites;
+  final int? coreSites;
 
   const ModuleInfo({
     required this.id,
@@ -283,6 +284,7 @@ class ModuleInfo {
     required this.description,
     required this.accepts,
     this.sites,
+    this.coreSites,
   });
 
   factory ModuleInfo.fromJson(Map<String, dynamic> j) => ModuleInfo(
@@ -293,6 +295,7 @@ class ModuleInfo {
             .map((e) => TargetKind.fromName(e as String))
             .toList(),
         sites: (j['sites'] as num?)?.toInt(),
+        coreSites: (j['coreSites'] as num?)?.toInt(),
       );
 }
 
@@ -323,6 +326,30 @@ class ModuleProgress {
       );
 }
 
+class PivotLink {
+  final String parent;
+  final TargetKind parentKind;
+  final Target child;
+  final int depth;
+  final String via;
+
+  const PivotLink({
+    required this.parent,
+    required this.parentKind,
+    required this.child,
+    required this.depth,
+    required this.via,
+  });
+
+  factory PivotLink.fromJson(Map<String, dynamic> j) => PivotLink(
+        parent: j['parent'] as String? ?? '',
+        parentKind: TargetKind.fromName(j['parent_kind'] as String? ?? 'unknown'),
+        child: Target.fromJson((j['child'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        depth: (j['depth'] as num?)?.toInt() ?? 0,
+        via: j['via'] as String? ?? '',
+      );
+}
+
 class ScanSnapshot {
   final String scanId;
   final Target target;
@@ -333,6 +360,7 @@ class ScanSnapshot {
   final List<ModuleProgress> modules;
   final List<Finding> findings;
   final OsintGraph graph;
+  final List<PivotLink> pivots;
   final List<String> log;
 
   const ScanSnapshot({
@@ -345,6 +373,7 @@ class ScanSnapshot {
     required this.modules,
     required this.findings,
     this.graph = OsintGraph.empty,
+    this.pivots = const [],
     required this.log,
   });
 
@@ -370,6 +399,9 @@ class ScanSnapshot {
         graph: j['graph'] is Map
             ? OsintGraph.fromJson((j['graph'] as Map).cast<String, dynamic>())
             : OsintGraph.empty,
+        pivots: ((j['pivots'] as List?) ?? const [])
+            .map((e) => PivotLink.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
         log: ((j['log'] as List?) ?? const []).map((e) => e as String).toList(),
       );
 
@@ -385,6 +417,15 @@ class ScanSnapshot {
             .toList(),
         'findings': findings.map((f) => f.toJson()).toList(),
         'graph': graph.toJson(),
+        'pivots': pivots
+            .map((p) => {
+                  'parent': p.parent,
+                  'parent_kind': p.parentKind.wire,
+                  'child': {'kind': p.child.kind.wire, 'raw': p.child.raw, 'normalized': p.child.normalized},
+                  'depth': p.depth,
+                  'via': p.via,
+                })
+            .toList(),
         'log': log,
       };
 }

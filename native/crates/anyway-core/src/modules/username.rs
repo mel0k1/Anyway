@@ -32,7 +32,7 @@ impl Module for UsernameModule {
         &super::ModuleDescriptor {
             id: "username.enumerate",
             name: "Username Enumeration",
-            description: "Probes 1,100+ social, developer, forum, gaming and dating platforms merged from the built-in and WhatsMyName databases with marker, status, redirect heuristics and nonce calibration against false positives",
+            description: "Probes the merged username database (built-in, WhatsMyName and the Maigret long tail of forum, wiki and community engines) with marker, status, redirect heuristics and nonce calibration against false positives. The long tail adds thousands of niche sites when enabled in settings",
             accepts: &[crate::models::TargetKind::Username],
         }
     }
@@ -40,12 +40,21 @@ impl Module for UsernameModule {
     async fn run(&self, ctx: ModuleCtx) -> Result<(), CoreError> {
         let username = ctx.target.normalized.clone();
         let conc = ctx.options.concurrency.clamp(4, 64) as usize;
-        let all = sites();
+        let long_tail = ctx.options.long_tail;
+        let all: Vec<Site> = sites()
+            .iter()
+            .filter(|s| long_tail || s.source != "maigret")
+            .cloned()
+            .collect();
         let total = all.len();
         let done = Arc::new(AtomicUsize::new(0));
         let client = Arc::new(ctx.client.clone());
 
-        ctx.note(&format!("probing {total} sites")).await;
+        ctx.note(&format!(
+            "probing {total} sites{}",
+            if long_tail { " (long tail)" } else { " (core)" }
+        ))
+        .await;
 
         stream::iter(all.iter().cloned())
             .map(|site| {

@@ -23,6 +23,10 @@ class AppState extends ChangeNotifier {
   String proxy = '';
   String hibpApiKey = '';
   Set<String> disabledModules = {};
+  bool pivotEnabled = true;
+  int pivotDepth = 2;
+  int pivotBudget = 8;
+  bool longTail = false;
 
   ScanSnapshot? activeScan;
   ScanSnapshot? lastSnapshot;
@@ -43,6 +47,10 @@ class AppState extends ChangeNotifier {
     proxy = prefs.getString('proxy') ?? '';
     hibpApiKey = prefs.getString('hibpApiKey') ?? '';
     disabledModules = (prefs.getStringList('disabledModules') ?? []).toSet();
+    pivotEnabled = prefs.getBool('pivotEnabled') ?? true;
+    pivotDepth = prefs.getInt('pivotDepth') ?? 2;
+    pivotBudget = prefs.getInt('pivotBudget') ?? 8;
+    longTail = prefs.getBool('longTail') ?? false;
 
     try {
       modules = RustCore.moduleList();
@@ -108,6 +116,34 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setPivotEnabled(bool v) async {
+    pivotEnabled = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('pivotEnabled', v);
+    notifyListeners();
+  }
+
+  Future<void> setPivotDepth(int v) async {
+    pivotDepth = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('pivotDepth', v);
+    notifyListeners();
+  }
+
+  Future<void> setPivotBudget(int v) async {
+    pivotBudget = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('pivotBudget', v);
+    notifyListeners();
+  }
+
+  Future<void> setLongTail(bool v) async {
+    longTail = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('longTail', v);
+    notifyListeners();
+  }
+
   void startScan(String query) {
     final enabled = modules.where((m) => !disabledModules.contains(m.id)).map((m) => m.id).toList();
     final scanId = RustCore.scanStart(
@@ -118,6 +154,10 @@ class AppState extends ChangeNotifier {
       proxy: proxy,
       hibpApiKey: hibpApiKey,
       modules: enabled,
+      pivot: pivotEnabled,
+      pivotDepth: pivotDepth,
+      pivotBudget: pivotBudget,
+      longTail: longTail,
     );
     activeScan = ScanSnapshot(
       scanId: scanId,

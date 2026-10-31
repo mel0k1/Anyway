@@ -36,14 +36,14 @@ Sources: [Sherlock](https://github.com/sherlock-project/sherlock), [Maigret](htt
 
 P0 — directly competes on core value:
 
-- **Site database depth.** Done in November 2026: the WhatsMyName JSON is imported wholesale — the merged database now spans 1,123 sites with category tags, marker-level detection from WMN entries and host-level deduplication that keeps the strongest heuristic per platform. Remaining gap: Maigret's 3,000+ long tail, reachable through a Maigret-DB importer.
+- **Site database depth.** Done in November 2026: the WhatsMyName JSON is imported wholesale and the Maigret database ships as an optional long tail with engine templates expanded — the merged database spans 1,100+ core sites and 7,900+ with the long tail enabled, with category tags, marker-level detection from WMN entries and host-level deduplication that keeps the strongest heuristic per platform and prefers built-in entries on ties. Remaining gap: periodic refresh of both snapshots from upstream.
 - **Email → registered accounts.** Done in November 2026: the `email.accounts` module ports the holehe technique — registration, login and password-recovery probes across 20 popular services (GitHub, Discord, Spotify, Twitter/X, Proton, Mail.ru, Firefox, Nike, Pinterest, Internet Archive and more) — with per-service response verdicts, evidence strings and confidence tagging that feed the graph as platform nodes.
 - **Breach data.** Done in November 2026: the `email.breaches` module queries the Have I Been Pwned v3 API with a user-supplied free key (stored locally in Settings) and reports every breach with dates, exposed record counts and data classes as Confirmed findings. Remaining gap: self-hostable DeHashed-style integrations and feeding breach names into the graph as dedicated nodes.
 - **Report formats.** Done in November 2026: results export as Markdown, JSON or a self-contained dark-themed HTML report with confidence badges, the entity/edge tables of the relationship graph and the scan log. Remaining gap: PDF rendering and Maigret-style per-platform detail pages.
 
 P1 — differentiating but not blocking:
 
-- **Recursive pivoting.** Maigret extracts usernames/identifiers from found profile pages and rescans automatically. Anyway stops at one hop; the graph's lead nodes should be clickable into a new scan.
+- **Recursive pivoting.** Done in November 2026: discovered entities (exposed emails, alt handles, resolved IPs, subdomains, linked domains) are automatically queued as the next scan targets up to a configurable depth and budget, confidence-gated at Questionable+, with role-account, mail-provider and reserved-IP denylists. Every pivot lands in the graph with provenance edges and a depth badge. Remaining gap: clickable manual re-pivot from any lead node.
 - **Headless browser checks.** JS-only sites fail plain HTTP heuristics; an optional WebDriver/CDP pass would raise coverage where marker heuristics cannot.
 - **Site categories and bulk toggles** (Maigret `--tags`): filter scans by category or country instead of per-module switches only.
 - **Social graph enrichment**: followers/friends of found profiles as graph nodes (GitHub API already available in enrich).

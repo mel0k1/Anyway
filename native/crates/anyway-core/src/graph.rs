@@ -1,4 +1,4 @@
-use crate::models::{Confidence, Finding, Target, TargetKind};
+use crate::models::{Confidence, Finding, PivotLink, Target, TargetKind};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -90,7 +90,7 @@ pub fn entity_id(kind: NodeKind, value: &str) -> String {
     format!("{kind:?}:{}", value.trim().to_lowercase())
 }
 
-fn target_node_kind(kind: TargetKind) -> NodeKind {
+pub(crate) fn target_node_kind(kind: TargetKind) -> NodeKind {
     match kind {
         TargetKind::Username => NodeKind::Username,
         TargetKind::Email => NodeKind::Email,
@@ -749,9 +749,35 @@ fn apply_finding(b: &mut Builder, f: &Finding) {
 }
 
 pub fn build_graph(targets: &[Target], findings: &[Finding]) -> OsintGraph {
+    build_graph_with_pivots(targets, findings, &[])
+}
+
+pub fn build_graph_with_pivots(
+    targets: &[Target],
+    findings: &[Finding],
+    pivots: &[PivotLink],
+) -> OsintGraph {
     let mut b = Builder::new(targets);
     for f in findings {
         apply_finding(&mut b, f);
+    }
+    for p in pivots {
+        let child = p.child.clone();
+        let id = target_id(&child);
+        b.node(
+            &id,
+            target_node_kind(child.kind),
+            if child.raw.is_empty() {
+                child.normalized.clone()
+            } else {
+                child.raw.clone()
+            },
+            Confidence::Medium,
+            "pivot",
+            true,
+        );
+        let parent = entity_id(target_node_kind(p.parent_kind), &p.parent);
+        b.edge(&parent, &id, "pivot", Confidence::Medium, &p.via);
     }
     b.finish()
 }
@@ -871,6 +897,47 @@ mod tests {
         assert!(g.edges.iter().any(|e| e.relation == "links_to"));
         assert!(g.edges.iter().any(|e| e.relation == "alt_handle"));
         assert!(g.edges.iter().any(|e| e.relation == "member_of"));
+    }
+
+    #[test]
+    fn pivots_link_parent_entity_to_new_root() {
+        let targets = vec![target(TargetKind::Username, "mel0k1")];
+        let child = target(TargetKind::Email, "jane@corp.io");
+        let pivots = vec![PivotLink {
+            parent: "mel0k1".into(),
+            parent_kind: TargetKind::Username,
+            child: child.clone(),
+            depth: 1,
+            via: "enrich.api".into(),
+        }];
+        let g = build_graph_with_pivots(&targets, &[], &pivots);
+        assert!(g
+            .nodes
+            .iter()
+            .any(|n| n.id == "Email:jane@corp.io" && n.root));
+        let edge = g
+            .edges
+            .iter()
+            .find(|e| e.relation == "pivot")
+            .expect("pivot edge");
+        assert_eq!(edge.from, "Username:mel0k1");
+        assert_eq!(edge.to, "Email:jane@corp.io");
+        assert_eq!(edge.via, "enrich.api");
+    }
+
+    #[test]
+    fn pivot_self_edges_are_dropped() {
+        let targets = vec![target(TargetKind::Username, "mel0k1")];
+        let child = target(TargetKind::Username, "mel0k1");
+        let pivots = vec![PivotLink {
+            parent: "mel0k1".into(),
+            parent_kind: TargetKind::Username,
+            child,
+            depth: 1,
+            via: "m".into(),
+        }];
+        let g = build_graph_with_pivots(&targets, &[], &pivots);
+        assert!(!g.edges.iter().any(|e| e.relation == "pivot"));
     }
 
     #[test]

@@ -56,6 +56,18 @@ class ScanScreen extends StatelessWidget {
                               labelStyle: TextStyle(color: scheme.onTertiaryContainer, fontWeight: FontWeight.w700),
                             ),
                           ),
+                        if (snap.pivots.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Tooltip(
+                              message: snap.pivots.map((p) => p.child.raw).join(', '),
+                              child: Chip(
+                                avatar: Icon(Icons.hub, size: 16, color: scheme.onSecondaryContainer),
+                                label: Text('${snap.pivots.length} pivots', style: TextStyle(color: scheme.onSecondaryContainer, fontWeight: FontWeight.w700)),
+                                backgroundColor: scheme.secondaryContainer,
+                              ),
+                            ),
+                          ),
                         if (state.proxy.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
