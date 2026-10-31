@@ -75,6 +75,63 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         _Section(
+          title: 'Network',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: TextEditingController(text: state.proxy),
+                onSubmitted: state.setProxy,
+                decoration: const InputDecoration(
+                  hintText: 'socks5h://127.0.0.1:9050',
+                  labelText: 'Proxy URL',
+                  helperText: 'http, https, socks5 or socks5h · applies to every scan · leave empty for direct connection',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ActionChip(
+                    avatar: const Icon(Icons.router, size: 18),
+                    label: const Text('Tor 9050'),
+                    tooltip: 'socks5h://127.0.0.1:9050',
+                    onPressed: () => state.setProxy('socks5h://127.0.0.1:9050'),
+                  ),
+                  ActionChip(
+                    avatar: const Icon(Icons.shield_outlined, size: 18),
+                    label: const Text('Tor 9150'),
+                    tooltip: 'socks5h://127.0.0.1:9150 (Tor Browser)',
+                    onPressed: () => state.setProxy('socks5h://127.0.0.1:9150'),
+                  ),
+                  ActionChip(
+                    avatar: const Icon(Icons.link_off, size: 18),
+                    label: const Text('Direct'),
+                    onPressed: () => state.setProxy(''),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    state.proxy.isEmpty ? Icons.lan : Icons.vpn_lock,
+                    size: 18,
+                    color: state.proxy.isEmpty ? scheme.onSurfaceVariant : scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.proxy.isEmpty ? 'Direct connection' : 'Traffic routed through ${state.proxy}',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _Section(
           title: 'Native core',
           child: Row(
             children: [

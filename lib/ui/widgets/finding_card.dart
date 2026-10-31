@@ -31,6 +31,7 @@ class _FindingCardState extends State<FindingCard> {
         'subdomains' => Icons.account_tree,
         'phone_info' => Icons.call,
         'metadata' => Icons.image,
+        'search_dork' => Icons.travel_explore,
         _ => Icons.circle,
       };
 
@@ -58,7 +59,19 @@ class _FindingCardState extends State<FindingCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(f.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Row(
+                        children: [
+                          Flexible(child: Text(f.label, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                          if (f.target != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(color: scheme.tertiaryContainer, borderRadius: BorderRadius.circular(10)),
+                              child: Text(f.target!, style: TextStyle(color: scheme.onTertiaryContainer, fontSize: 10, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ],
+                      ),
                       const SizedBox(height: 2),
                       SelectableText(f.value, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
                     ],

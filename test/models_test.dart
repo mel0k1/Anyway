@@ -52,6 +52,65 @@ void main() {
     expect(snap.running, isFalse);
   });
 
+
+  test('multi-target detection uses first token', () {
+    expect(detectTargetKind('torvalds, example.org'), TargetKind.username);
+    expect(detectTargetKind('8.8.8.8; 1.1.1.1; 9.9.9.9'), TargetKind.ipAddress);
+    expect(detectTargetKind('a@b.co, c@d.io'), TargetKind.email);
+  });
+
+  test('snapshot parses multi-target payload with labels', () {
+    final snap = ScanSnapshot.fromJson({
+      'scanId': 'scan-3',
+      'target': {'kind': 'username', 'raw': 'a, b', 'normalized': 'a, b'},
+      'targets': [
+        {'kind': 'username', 'raw': 'a', 'normalized': 'a'},
+        {'kind': 'username', 'raw': 'b', 'normalized': 'b'},
+      ],
+      'status': 'done',
+      'startedAt': 1,
+      'finishedAt': 2,
+      'modules': [
+        {'id': 'username.enumerate', 'label': 'a', 'done': 5, 'total': 5, 'status': 'done', 'found': 2},
+        {'id': 'username.enumerate', 'label': 'b', 'done': 5, 'total': 5, 'status': 'done', 'found': 1},
+      ],
+      'findings': [
+        {
+          'module_id': 'username.enumerate',
+          'category': 'social_profile',
+          'label': 'GitHub',
+          'value': 'https://github.com/a',
+          'url': null,
+          'confidence': 'high',
+          'target': 'a',
+        },
+      ],
+      'log': [],
+    });
+    expect(snap.multiTarget, isTrue);
+    expect(snap.targets, hasLength(2));
+    expect(snap.modules.first.label, 'a');
+    expect(snap.findings.first.target, 'a');
+  });
+
+  test('module info carries optional site count', () {
+    final m = ModuleInfo.fromJson({
+      'id': 'username.enumerate',
+      'name': 'Username Enumeration',
+      'description': 'Probes sites',
+      'accepts': ['username'],
+      'sites': 706,
+    });
+    expect(m.sites, 706);
+    final plain = ModuleInfo.fromJson({
+      'id': 'ip.intel',
+      'name': 'IP Intelligence',
+      'description': 'geo',
+      'accepts': ['ip_address'],
+    });
+    expect(plain.sites, isNull);
+  });
+
   test('markdown report contains target and tables', () {
     final snap = ScanSnapshot.fromJson({
       'scanId': 'scan-2',

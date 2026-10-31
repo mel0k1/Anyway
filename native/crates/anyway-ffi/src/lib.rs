@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use anyway_core::{registry, ScanHandle, ScanOptions, ScanRequest};
 use serde_json::json;
 use std::collections::HashMap;
@@ -10,14 +12,19 @@ static MANAGER: OnceLock<Mutex<HashMap<String, ScanHandle>>> = OnceLock::new();
 static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 fn runtime() -> &'static Runtime {
-    RUNTIME.get_or_init(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("runtime"))
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+    })
 }
 
 fn manager() -> &'static Mutex<HashMap<String, ScanHandle>> {
     MANAGER.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-unsafe fn read_str<'a>(ptr: *const c_char) -> String {
+unsafe fn read_str(ptr: *const c_char) -> String {
     CStr::from_ptr(ptr).to_string_lossy().into_owned()
 }
 
@@ -38,19 +45,24 @@ pub extern "C" fn anyway_version() -> *mut c_char {
 
 #[no_mangle]
 pub extern "C" fn anyway_module_list() -> *mut c_char {
+    let site_count = anyway_core::modules::sites::sites().len() as u64;
     let modules: Vec<serde_json::Value> = registry()
         .iter()
         .map(|m| {
             let d = m.descriptor();
-            json!({
+            let mut entry = json!({
                 "id": d.id,
                 "name": d.name,
                 "description": d.description,
                 "accepts": d.accepts.iter().map(|k| serde_json::to_value(k).unwrap()).collect::<Vec<_>>(),
-            })
+            });
+            if d.id == "username.enumerate" {
+                entry["sites"] = json!(site_count);
+            }
+            entry
         })
         .collect();
-    to_ptr(json!({"ok": true, "modules": modules}))
+    to_ptr(json!({"ok": true, "modules": modules, "sites": site_count}))
 }
 
 #[no_mangle]
@@ -64,13 +76,22 @@ pub unsafe extern "C" fn anyway_scan_start(request: *const c_char) -> *mut c_cha
         return err_ptr("empty query");
     }
     let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let scan_id = format!("scan-{}-{n}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0));
+    let scan_id = format!(
+        "scan-{}-{n}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
     let options: ScanOptions = req.options;
     let handle = {
         let _guard = runtime().enter();
         anyway_core::engine::launch(scan_id.clone(), req.query, options)
     };
-    manager().lock().expect("manager").insert(scan_id.clone(), handle);
+    manager()
+        .lock()
+        .expect("manager")
+        .insert(scan_id.clone(), handle);
     to_ptr(json!({"ok": true, "scanId": scan_id}))
 }
 

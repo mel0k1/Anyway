@@ -20,6 +20,7 @@ class AppState extends ChangeNotifier {
   int concurrency = 24;
   int timeoutSecs = 12;
   String userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  String proxy = '';
   Set<String> disabledModules = {};
 
   ScanSnapshot? activeScan;
@@ -38,6 +39,7 @@ class AppState extends ChangeNotifier {
     concurrency = prefs.getInt('concurrency') ?? 24;
     timeoutSecs = prefs.getInt('timeoutSecs') ?? 12;
     userAgent = prefs.getString('userAgent') ?? userAgent;
+    proxy = prefs.getString('proxy') ?? '';
     disabledModules = (prefs.getStringList('disabledModules') ?? []).toSet();
 
     try {
@@ -79,6 +81,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setProxy(String v) async {
+    proxy = v.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('proxy', proxy);
+    notifyListeners();
+  }
+
   Future<void> toggleModule(String id, bool enabled) async {
     if (enabled) {
       disabledModules.remove(id);
@@ -97,6 +106,7 @@ class AppState extends ChangeNotifier {
       concurrency: concurrency,
       timeoutSecs: timeoutSecs,
       userAgent: userAgent,
+      proxy: proxy,
       modules: enabled,
     );
     activeScan = ScanSnapshot(

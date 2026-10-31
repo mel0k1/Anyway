@@ -56,6 +56,7 @@ class Finding {
   final String value;
   final String? url;
   final Confidence confidence;
+  final String? target;
   final Map<String, dynamic>? detail;
 
   const Finding({
@@ -65,6 +66,7 @@ class Finding {
     required this.value,
     this.url,
     this.confidence = Confidence.medium,
+    this.target,
     this.detail,
   });
 
@@ -78,6 +80,7 @@ class Finding {
           (c) => c.name == (j['confidence'] as String? ?? 'medium'),
           orElse: () => Confidence.medium,
         ),
+        target: j['target'] as String?,
         detail: j['detail'] is Map<String, dynamic> ? j['detail'] as Map<String, dynamic> : null,
       );
 
@@ -88,6 +91,7 @@ class Finding {
         'value': value,
         'url': url,
         'confidence': confidence.name,
+        'target': target,
         'detail': detail,
       };
 }
@@ -97,8 +101,15 @@ class ModuleInfo {
   final String name;
   final String description;
   final List<TargetKind> accepts;
+  final int? sites;
 
-  const ModuleInfo({required this.id, required this.name, required this.description, required this.accepts});
+  const ModuleInfo({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.accepts,
+    this.sites,
+  });
 
   factory ModuleInfo.fromJson(Map<String, dynamic> j) => ModuleInfo(
         id: j['id'] as String? ?? '',
@@ -107,20 +118,30 @@ class ModuleInfo {
         accepts: ((j['accepts'] as List?) ?? const [])
             .map((e) => TargetKind.fromName(e as String))
             .toList(),
+        sites: (j['sites'] as num?)?.toInt(),
       );
 }
 
 class ModuleProgress {
   final String id;
+  final String label;
   final int done;
   final int total;
   final String status;
   final int found;
 
-  const ModuleProgress({required this.id, required this.done, required this.total, required this.status, required this.found});
+  const ModuleProgress({
+    required this.id,
+    this.label = '',
+    required this.done,
+    required this.total,
+    required this.status,
+    required this.found,
+  });
 
   factory ModuleProgress.fromJson(Map<String, dynamic> j) => ModuleProgress(
         id: j['id'] as String? ?? '',
+        label: j['label'] as String? ?? '',
         done: (j['done'] as num?)?.toInt() ?? 0,
         total: (j['total'] as num?)?.toInt() ?? 0,
         status: j['status'] as String? ?? '',
@@ -131,6 +152,7 @@ class ModuleProgress {
 class ScanSnapshot {
   final String scanId;
   final Target target;
+  final List<Target> targets;
   final String status;
   final int startedAt;
   final int? finishedAt;
@@ -141,6 +163,7 @@ class ScanSnapshot {
   const ScanSnapshot({
     required this.scanId,
     required this.target,
+    this.targets = const [],
     required this.status,
     required this.startedAt,
     this.finishedAt,
@@ -151,9 +174,14 @@ class ScanSnapshot {
 
   bool get running => status == 'running';
 
+  bool get multiTarget => targets.length > 1;
+
   factory ScanSnapshot.fromJson(Map<String, dynamic> j) => ScanSnapshot(
         scanId: j['scanId'] as String? ?? '',
         target: Target.fromJson((j['target'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        targets: ((j['targets'] as List?) ?? const [])
+            .map((e) => Target.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
         status: j['status'] as String? ?? 'unknown',
         startedAt: (j['startedAt'] as num?)?.toInt() ?? 0,
         finishedAt: (j['finishedAt'] as num?)?.toInt(),
@@ -169,11 +197,12 @@ class ScanSnapshot {
   Map<String, dynamic> toJson() => {
         'scanId': scanId,
         'target': {'kind': target.kind.wire, 'raw': target.raw, 'normalized': target.normalized},
+        'targets': targets.map((t) => {'kind': t.kind.wire, 'raw': t.raw, 'normalized': t.normalized}).toList(),
         'status': status,
         'startedAt': startedAt,
         'finishedAt': finishedAt,
         'modules': modules
-            .map((m) => {'id': m.id, 'done': m.done, 'total': m.total, 'status': m.status, 'found': m.found})
+            .map((m) => {'id': m.id, 'label': m.label, 'done': m.done, 'total': m.total, 'status': m.status, 'found': m.found})
             .toList(),
         'findings': findings.map((f) => f.toJson()).toList(),
         'log': log,
@@ -181,7 +210,8 @@ class ScanSnapshot {
 }
 
 TargetKind detectTargetKind(String query) {
-  final q = query.trim().replaceFirst(RegExp(r'^@+'), '');
+  final first = query.trim().split(RegExp(r'[,;\n]')).first.trim();
+  final q = first.replaceFirst(RegExp(r'^@+'), '');
   if (q.isEmpty) return TargetKind.unknown;
   final email = RegExp(r'^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
   final domain = RegExp(r'^(?=.{4,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$');

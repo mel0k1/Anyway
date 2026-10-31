@@ -79,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Text('New scan', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text('Username, email, IP, domain, phone number or image path', style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  Text('Username, email, IP, domain, phone number or image path · combine targets with commas', style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 20),
                   Row(
                     children: [
@@ -144,7 +144,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(height: 10),
                           Wrap(
                             spacing: 6,
-                            children: [for (final a in m.accepts) Chip(label: Text(a.title, style: const TextStyle(fontSize: 10.5)))],
+                            runSpacing: 6,
+                            children: [
+                              if (m.sites != null)
+                                Chip(
+                                  label: Text('${m.sites} sites', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
+                                  backgroundColor: scheme.primaryContainer,
+                                  labelStyle: TextStyle(color: scheme.onPrimaryContainer),
+                                ),
+                              for (final a in m.accepts) Chip(label: Text(a.title, style: const TextStyle(fontSize: 10.5))),
+                            ],
                           ),
                         ],
                       ),

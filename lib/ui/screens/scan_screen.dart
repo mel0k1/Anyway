@@ -47,6 +47,27 @@ class ScanScreen extends StatelessWidget {
                       children: [
                         Chip(label: Text(snap.target.kind.title)),
                         const SizedBox(width: 8),
+                        if (snap.multiTarget)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Chip(
+                              label: Text('${snap.targets.length} targets'),
+                              backgroundColor: scheme.tertiaryContainer,
+                              labelStyle: TextStyle(color: scheme.onTertiaryContainer, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        if (state.proxy.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Tooltip(
+                              message: state.proxy,
+                              child: Chip(
+                                avatar: Icon(Icons.vpn_lock, size: 16, color: scheme.onTertiaryContainer),
+                                label: Text('proxy', style: TextStyle(color: scheme.onTertiaryContainer, fontWeight: FontWeight.w700)),
+                                backgroundColor: scheme.tertiaryContainer,
+                              ),
+                            ),
+                          ),
                         Expanded(child: Text(snap.target.raw, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800), overflow: TextOverflow.ellipsis)),
                       ],
                     ),
@@ -158,7 +179,16 @@ class _ModuleRow extends StatelessWidget {
                 color: done ? scheme.primary : (active ? scheme.secondary : scheme.outline),
               ),
               const SizedBox(width: 10),
-              Expanded(child: Text(m.id, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(m.id, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    if (m.label.isNotEmpty)
+                      Text(m.label, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11), overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
               if (m.found > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -192,6 +222,7 @@ class _StatusPill extends StatelessWidget {
       'running' => (scheme.secondaryContainer, scheme.onSecondaryContainer, Icons.autorenew),
       'done' => (scheme.primaryContainer, scheme.onPrimaryContainer, Icons.check_circle),
       'cancelled' => (scheme.errorContainer, scheme.onErrorContainer, Icons.cancel),
+      'failed' => (scheme.errorContainer, scheme.onErrorContainer, Icons.error),
       _ => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant, Icons.help),
     };
     return Container(

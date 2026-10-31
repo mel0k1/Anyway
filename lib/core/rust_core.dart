@@ -61,7 +61,7 @@ class RustCore {
 
   static String version() => _call(() => _v0()());
 
-  static String scanStart(String query, {int concurrency = 24, int timeoutSecs = 12, String? userAgent, List<String>? modules}) =>
+  static String scanStart(String query, {int concurrency = 24, int timeoutSecs = 12, String? userAgent, String? proxy, List<String>? modules}) =>
       _call(() {
         final f = lib.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>), Pointer<Utf8> Function(Pointer<Utf8>)>(
             'anyway_scan_start');
@@ -71,6 +71,7 @@ class RustCore {
             'concurrency': concurrency,
             'timeout_secs': timeoutSecs,
             'user_agent': userAgent ?? '',
+            'proxy': proxy ?? '',
             'enabled_modules': modules ?? const <String>[],
           },
         });
