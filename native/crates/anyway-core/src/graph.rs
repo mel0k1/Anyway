@@ -576,6 +576,8 @@ fn apply_finding(b: &mut Builder, f: &Finding) {
                 );
                 let relation = if direction == "following" {
                     "follows"
+                } else if direction == "friends" {
+                    "friends_with"
                 } else {
                     "followed_by"
                 };

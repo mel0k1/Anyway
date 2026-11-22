@@ -45,10 +45,12 @@ impl Module for UsernameModule {
         let long_tail = ctx.options.long_tail;
         let allowed = ctx.options.allowed_categories.clone();
         let blocked = ctx.options.blocked_categories.clone();
+        let countries = ctx.options.countries.clone();
         let all: Vec<Site> = sites()
             .iter()
             .filter(|s| long_tail || s.source != "maigret")
             .filter(|s| category_visible(&s.category, &allowed, &blocked))
+            .filter(|s| countries_visible(&s.countries, &countries))
             .cloned()
             .collect();
         let total = all.len();
@@ -57,9 +59,10 @@ impl Module for UsernameModule {
         let ambiguous: Arc<Mutex<Vec<Site>>> = Arc::new(Mutex::new(Vec::new()));
 
         ctx.note(&format!(
-            "probing {total} sites{}{}",
+            "probing {total} sites{}{}{}",
             if long_tail { " (long tail)" } else { " (core)" },
-            category_note(&allowed, &blocked)
+            category_note(&allowed, &blocked),
+            country_note(&countries)
         ))
         .await;
 
@@ -229,6 +232,27 @@ pub fn category_visible(category: &str, allowed: &[String], blocked: &[String]) 
         || allowed
             .iter()
             .any(|c| c.eq_ignore_ascii_case(category.trim()))
+}
+
+pub fn countries_visible(site_countries: &[String], filter: &[String]) -> bool {
+    if filter.is_empty() {
+        return true;
+    }
+    site_countries.is_empty()
+        || site_countries
+            .iter()
+            .any(|c| filter.iter().any(|f| f.eq_ignore_ascii_case(c.trim())))
+}
+
+fn country_note(countries: &[String]) -> String {
+    if countries.is_empty() {
+        String::new()
+    } else {
+        format!(
+            ", countries: {} (global sites included)",
+            countries.join(", ")
+        )
+    }
 }
 
 fn category_note(allowed: &[String], blocked: &[String]) -> String {
@@ -536,6 +560,7 @@ mod tests {
             unknown_codes: vec![403, 429, 503],
             strip: String::new(),
             source: "test".into(),
+            countries: Vec::new(),
         }
     }
 
@@ -609,6 +634,7 @@ mod tests {
             unknown_codes: vec![403, 429, 503],
             strip: String::new(),
             source: "test".into(),
+            countries: Vec::new(),
         }
     }
 
@@ -669,6 +695,18 @@ mod tests {
         assert!(category_visible("forum", &[], &blocked));
         assert!(category_visible("coding", &[], &[]));
         assert!(!category_visible(" adult ", &[], &blocked));
+    }
+
+    #[test]
+    fn country_visibility_rules() {
+        let ru = vec!["ru".to_string()];
+        let de_ru = vec!["de".to_string(), "ru".to_string()];
+        assert!(countries_visible(&[], &ru));
+        assert!(countries_visible(&ru, &ru));
+        assert!(countries_visible(&de_ru, &ru));
+        assert!(!countries_visible(&["de".to_string()], &ru));
+        assert!(countries_visible(&de_ru, &[]));
+        assert!(countries_visible(&["RU".to_string()], &ru));
     }
 
     #[test]

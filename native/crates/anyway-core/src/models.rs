@@ -64,6 +64,7 @@ pub struct ScanOptions {
     pub browser_checks: bool,
     pub allowed_categories: Vec<String>,
     pub blocked_categories: Vec<String>,
+    pub countries: Vec<String>,
 }
 
 impl Default for ScanOptions {
@@ -82,6 +83,7 @@ impl Default for ScanOptions {
             browser_checks: false,
             allowed_categories: Vec::new(),
             blocked_categories: Vec::new(),
+            countries: Vec::new(),
         }
     }
 }

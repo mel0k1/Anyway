@@ -33,6 +33,8 @@ class AppState extends ChangeNotifier {
   Set<String> allowedCategories = {};
   Set<String> blockedCategories = {};
   List<CategoryInfo> categories = [];
+  List<CategoryInfo> countries = [];
+  Set<String> selectedCountries = {};
   String? detectedBrowser;
 
   ScanSnapshot? activeScan;
@@ -61,10 +63,12 @@ class AppState extends ChangeNotifier {
     browserChecks = prefs.getBool('browserChecks') ?? false;
     allowedCategories = (prefs.getStringList('allowedCategories') ?? []).toSet();
     blockedCategories = (prefs.getStringList('blockedCategories') ?? []).toSet();
+    selectedCountries = (prefs.getStringList('selectedCountries') ?? []).toSet();
 
     try {
       modules = RustCore.moduleList();
       categories = RustCore.categoryList();
+      countries = RustCore.countryList();
       detectedBrowser = RustCore.detectBrowser();
       nativeReady = true;
     } catch (e) {
@@ -183,6 +187,17 @@ class AppState extends ChangeNotifier {
     return CategoryState.neutral;
   }
 
+  Future<void> toggleCountry(String name, bool selected) async {
+    if (selected) {
+      selectedCountries.add(name);
+    } else {
+      selectedCountries.remove(name);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('selectedCountries', selectedCountries.toList());
+    notifyListeners();
+  }
+
   void resetCategories() {
     allowedCategories.clear();
     blockedCategories.clear();
@@ -212,6 +227,7 @@ class AppState extends ChangeNotifier {
       browserChecks: browserChecks,
       allowedCategories: allowedCategories.toList(),
       blockedCategories: blockedCategories.toList(),
+      countries: selectedCountries.toList(),
     );
     activeScan = ScanSnapshot(
       scanId: scanId,
@@ -250,6 +266,30 @@ class AppState extends ChangeNotifier {
     final id = activeScan?.scanId;
     if (id == null) return;
     RustCore.scanCancel(id);
+  }
+
+  Future<void> pivotNode(String nodeId) async {
+    final snap = lastSnapshot ?? activeScan;
+    if (snap == null) throw StateError('no scan to pivot');
+    if (snap.status == 'running') throw StateError('scan is still running');
+    final target = RustCore.scanPivot(snap.scanId, nodeId);
+    activeScan = ScanSnapshot(
+      scanId: snap.scanId,
+      target: snap.target,
+      targets: snap.targets,
+      status: 'running',
+      startedAt: snap.startedAt,
+      modules: snap.modules,
+      findings: snap.findings,
+      graph: snap.graph,
+      pivots: snap.pivots,
+      log: [...snap.log, 'manual pivot: + ${target.raw}'],
+    );
+    lastSnapshot = null;
+    notifyListeners();
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) => _poll());
+    _poll();
   }
 
   Future<void> openCase(CaseMeta meta) async {

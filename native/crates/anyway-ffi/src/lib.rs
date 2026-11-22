@@ -72,12 +72,17 @@ pub extern "C" fn anyway_module_list() -> *mut c_char {
         .into_iter()
         .map(|(name, count)| json!({"name": name, "count": count}))
         .collect();
+    let countries: Vec<serde_json::Value> = anyway_core::modules::sites::country_counts()
+        .into_iter()
+        .map(|(name, count)| json!({"name": name, "count": count}))
+        .collect();
     to_ptr(json!({
         "ok": true,
         "modules": modules,
         "sites": site_count,
         "coreSites": core_count,
         "categories": categories,
+        "countries": countries,
     }))
 }
 
@@ -142,6 +147,23 @@ pub unsafe extern "C" fn anyway_scan_cancel(scan_id: *const c_char) -> *mut c_ch
             runtime().block_on(h.cancel());
             to_ptr(json!({"ok": true}))
         }
+        None => err_ptr("unknown scan"),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_scan_pivot(
+    scan_id: *const c_char,
+    node: *const c_char,
+) -> *mut c_char {
+    let id = read_str(scan_id);
+    let node_id = read_str(node);
+    let handle = manager().lock().expect("manager").get(&id).cloned();
+    match handle {
+        Some(h) => match runtime().block_on(anyway_core::engine::manual_pivot(&h, &node_id)) {
+            Ok(target) => to_ptr(json!({"ok": true, "target": target})),
+            Err(e) => err_ptr(&e),
+        },
         None => err_ptr("unknown scan"),
     }
 }

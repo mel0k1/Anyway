@@ -298,6 +298,52 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         _Section(
+          title: 'Countries',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select countries to focus the username module on region-specific sites. Global platforms with no country tag are always probed',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in state.countries)
+                    FilterChip(
+                      label: Text('${c.name} · ${c.count}'),
+                      selected: state.selectedCountries.contains(c.name),
+                      onSelected: (on) => state.toggleCountry(c.name, on),
+                    ),
+                ],
+              ),
+              if (state.selectedCountries.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      '${state.selectedCountries.length} countries selected',
+                      style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
+                    ),
+                    const Spacer(),
+                    ActionChip(
+                      avatar: const Icon(Icons.restart_alt, size: 16),
+                      label: const Text('Reset'),
+                      onPressed: () async {
+                        for (final name in state.selectedCountries.toList()) {
+                          await state.toggleCountry(name, false);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        _Section(
           title: 'Breach lookup',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

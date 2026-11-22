@@ -184,6 +184,38 @@ class _GraphScreenState extends State<GraphScreen> {
     return MatrixUtils.transformPoint(inverse, localPoint);
   }
 
+  bool _pivotable(GraphNode node) =>
+      !node.root &&
+      switch (node.kind) {
+        GraphNodeKind.username ||
+        GraphNodeKind.email ||
+        GraphNodeKind.domain ||
+        GraphNodeKind.ip ||
+        GraphNodeKind.phone => true,
+        _ => false,
+      };
+
+  Future<void> _pivot(GraphNode node) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.state.pivotNode(node.id);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Re-pivot started on ${node.label}'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Re-pivot failed: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _onTapUp(TapUpDetails details) {
     final canvasPoint = _toCanvas(details.localPosition);
     GraphNode? hit;
@@ -404,6 +436,8 @@ class _GraphScreenState extends State<GraphScreen> {
               graph: graph,
               scheme: scheme,
               confidenceColor: (c) => _confidenceColor(c, scheme),
+              canPivot: snap.status != 'running' && _pivotable(selectedNode),
+              onPivot: () => _pivot(selectedNode),
               onClose: () => setState(() => _selected = null),
               onSelect: (id) => setState(() => _selected = id),
             ),
@@ -572,6 +606,8 @@ class _NodePanel extends StatelessWidget {
   final OsintGraph graph;
   final ColorScheme scheme;
   final Color Function(Confidence) confidenceColor;
+  final bool canPivot;
+  final VoidCallback onPivot;
   final VoidCallback onClose;
   final void Function(String id) onSelect;
 
@@ -580,6 +616,8 @@ class _NodePanel extends StatelessWidget {
     required this.graph,
     required this.scheme,
     required this.confidenceColor,
+    required this.canPivot,
+    required this.onPivot,
     required this.onClose,
     required this.onSelect,
   });
@@ -645,6 +683,14 @@ class _NodePanel extends StatelessWidget {
             '${node.sources.isEmpty ? '' : ' · via ${node.sources.join(', ')}'}',
             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
           ),
+          if (canPivot) ...[
+            const SizedBox(height: 10),
+            FilledButton.tonalIcon(
+              onPressed: onPivot,
+              icon: const Icon(Icons.hub, size: 18),
+              label: const Text('Re-pivot on this node'),
+            ),
+          ],
           const SizedBox(height: 8),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 180),

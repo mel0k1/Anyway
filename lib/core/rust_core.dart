@@ -69,6 +69,16 @@ class RustCore {
             .toList();
       });
 
+  static List<CategoryInfo> countryList() => _call(() {
+        final f = lib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>('anyway_module_list');
+        final json = _take(f());
+        final map = jsonDecode(json) as Map<String, dynamic>;
+        if (map['ok'] != true) throw RustCoreException(map['error'] as String? ?? 'country list failed');
+        return ((map['countries'] as List?) ?? const [])
+            .map((e) => CategoryInfo.fromJson((e as Map).cast<String, dynamic>()))
+            .toList();
+      });
+
   static String? detectBrowser() => _call(() {
         final f = lib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>('anyway_browser_detect');
         final json = _take(f());
@@ -94,6 +104,7 @@ class RustCore {
     bool browserChecks = false,
     List<String> allowedCategories = const <String>[],
     List<String> blockedCategories = const <String>[],
+    List<String> countries = const <String>[],
   }) =>
       _call(() {
         final f = lib.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>), Pointer<Utf8> Function(Pointer<Utf8>)>(
@@ -114,6 +125,7 @@ class RustCore {
             'browser_checks': browserChecks,
             'allowed_categories': allowedCategories,
             'blocked_categories': blockedCategories,
+            'countries': countries,
           },
         });
         final ptr = body.toNativeUtf8();
@@ -149,6 +161,25 @@ class RustCore {
           _take(f(ptr));
         } finally {
           malloc.free(ptr);
+        }
+      });
+
+  static Target scanPivot(String scanId, String nodeId) => _call(() {
+        final f = lib.lookupFunction<
+            Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+            Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)>('anyway_scan_pivot');
+        final id = scanId.toNativeUtf8();
+        final node = nodeId.toNativeUtf8();
+        try {
+          final resp = _take(f(id, node));
+          final map = jsonDecode(resp) as Map<String, dynamic>;
+          if (map['ok'] != true) {
+            throw RustCoreException(map['error'] as String? ?? 'pivot failed');
+          }
+          return Target.fromJson((map['target'] as Map).cast<String, dynamic>());
+        } finally {
+          malloc.free(id);
+          malloc.free(node);
         }
       });
 

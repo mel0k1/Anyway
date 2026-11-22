@@ -109,11 +109,16 @@ def convert(name: str, entry: dict, engines: dict) -> dict | None:
 
     check = entry.get("checkType")
     tags = [t for t in entry.get("tags") or [] if t not in SKIP_TAGS]
-    category = TAG_MAP.get(tags[0] if tags else "", tags[0] if tags else "") or "misc"
+    countries = sorted(
+        {t.lower() for t in tags if len(t) == 2 and t.isalpha() and t.islower()}
+    )
+    topical = [t for t in tags if t not in countries]
+    category = TAG_MAP.get(topical[0] if topical else "", topical[0] if topical else "") or "misc"
 
     out = {
         "name": name,
         "cat": category,
+        "countries": countries,
         "url": url,
         "probe": probe,
         "method": "",

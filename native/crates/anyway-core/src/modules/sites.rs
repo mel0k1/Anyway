@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -34,6 +34,8 @@ pub struct SiteDef {
     pub strip: String,
     #[serde(default)]
     pub source: String,
+    #[serde(default)]
+    pub countries: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +66,7 @@ pub struct Site {
     pub unknown_codes: Vec<u16>,
     pub strip: String,
     pub source: String,
+    pub countries: Vec<String>,
 }
 
 pub const DEFAULT_UNKNOWN_CODES: &[u16] = &[403, 429, 503];
@@ -239,6 +242,7 @@ fn wmn_def(site: WmnSite) -> SiteDef {
         unk,
         strip: site.strip_bad_char,
         source: "wmn".to_string(),
+        countries: Vec::new(),
     }
 }
 
@@ -409,6 +413,16 @@ fn compiled(def: SiteDef) -> Option<Site> {
         } else {
             def.source
         },
+        countries: {
+            let mut seen = BTreeSet::new();
+            for c in def.countries {
+                let c = c.trim().to_ascii_lowercase();
+                if c.len() == 2 && c.chars().all(|ch| ch.is_ascii_alphabetic()) {
+                    seen.insert(c);
+                }
+            }
+            seen.into_iter().collect()
+        },
     })
 }
 
@@ -420,6 +434,16 @@ pub fn category_counts() -> Vec<(String, usize)> {
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for site in sites() {
         *seen.entry(site.category.clone()).or_insert(0) += 1;
+    }
+    seen.into_iter().collect()
+}
+
+pub fn country_counts() -> Vec<(String, usize)> {
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    for site in sites() {
+        for country in &site.countries {
+            *seen.entry(country.clone()).or_insert(0) += 1;
+        }
     }
     seen.into_iter().collect()
 }
@@ -585,6 +609,20 @@ mod tests {
     fn categories_are_non_empty() {
         assert!(!categories().is_empty());
         assert!(category_counts().iter().all(|(_, n)| *n > 0));
+    }
+
+    #[test]
+    fn long_tail_carries_country_tags() {
+        let counts = country_counts();
+        assert!(
+            counts.iter().any(|(c, _)| c == "ru"),
+            "no ru tag in database"
+        );
+        assert!(counts.iter().all(|(_, n)| *n > 0));
+        let ru = counts.iter().find(|(c, _)| c == "ru").map(|(_, n)| *n);
+        assert!(ru.is_some_and(|n| n >= 500), "ru sites {}", ru.unwrap_or(0));
+        let tagged = sites().iter().filter(|s| !s.countries.is_empty()).count();
+        assert!(tagged >= 3000, "tagged sites {tagged}");
     }
 
     #[test]
