@@ -75,7 +75,7 @@ class _ShellState extends State<Shell> {
         onOpenGraph: () => setState(() => _index = 3),
       ),
       GraphScreen(state: state),
-      const ImagesScreen(),
+      ImagesScreen(state: state),
       const LeaksScreen(),
       PlannerScreen(state: state),
       CasesScreen(state: state, onOpenCase: () => setState(() => _index = 2)),

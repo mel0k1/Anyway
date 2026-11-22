@@ -6,13 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_state.dart';
 import '../../core/models.dart';
 import '../../core/rust_core.dart';
 
 /// Visual recon: perceptual hashes, local CBIR index, OCR and deep links to
 /// reverse image search engines.
 class ImagesScreen extends StatefulWidget {
-  const ImagesScreen({super.key});
+  final AppState state;
+
+  const ImagesScreen({super.key, required this.state});
 
   @override
   State<ImagesScreen> createState() => _ImagesScreenState();
@@ -25,7 +28,6 @@ class _ImagesScreenState extends State<ImagesScreen> {
   bool _busy = false;
   bool _runOcr = true;
   String _langs = 'eng';
-  Map<String, dynamic>? _ocrInfo;
   List<Map<String, dynamic>> _index = [];
   final _urlController = TextEditingController();
   List<Map<String, dynamic>> _matches = [];
@@ -35,7 +37,6 @@ class _ImagesScreenState extends State<ImagesScreen> {
   void initState() {
     super.initState();
     _loadIndex();
-    _loadOcrInfo();
   }
 
   Future<void> _loadIndex() async {
@@ -60,13 +61,6 @@ class _ImagesScreenState extends State<ImagesScreen> {
     if (_indexFile == null) return;
     try {
       await _indexFile!.writeAsString(jsonEncode(_index));
-    } catch (_) {}
-  }
-
-  Future<void> _loadOcrInfo() async {
-    try {
-      _ocrInfo = RustCore.ocrAvailable();
-      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -186,7 +180,8 @@ class _ImagesScreenState extends State<ImagesScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final ocrOk = _ocrInfo?['available'] as bool? ?? false;
+    final ocrInfo = widget.state.ocrInfo;
+    final ocrOk = ocrInfo?['available'] as bool? ?? false;
 
     return Padding(
       padding: const EdgeInsets.all(32),
@@ -244,9 +239,11 @@ class _ImagesScreenState extends State<ImagesScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            ocrOk
-                                ? 'tesseract ready (${((_ocrInfo?['langs'] as List?) ?? const []).length} langs)'
-                                : 'tesseract not found on PATH',
+                            ocrInfo == null
+                                ? 'checking OCR engine…'
+                                : ocrOk
+                                    ? 'tesseract ready (${((ocrInfo['langs'] as List?) ?? const []).length} langs)'
+                                    : 'tesseract not found on PATH',
                             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
                           ),
                         ],

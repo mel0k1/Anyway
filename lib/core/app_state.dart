@@ -41,6 +41,7 @@ class AppState extends ChangeNotifier {
   Set<String> selectedCountries = {};
   String? detectedBrowser;
   TorStatus? torStatus;
+  Map<String, dynamic>? ocrInfo;
 
   ScanSnapshot? activeScan;
   ScanSnapshot? lastSnapshot;
@@ -50,6 +51,7 @@ class AppState extends ChangeNotifier {
   List<ScheduleEntryInfo> scheduleEntries = [];
   Timer? _scheduleTimer;
   File? _scheduleFile;
+  String? _lastScheduleSig;
 
   bool get darkTheme => _darkTheme;
 
@@ -92,6 +94,10 @@ class AppState extends ChangeNotifier {
       await _initScheduler();
       unawaited(checkTor());
       _scheduleTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshSchedule());
+      try {
+        ocrInfo = RustCore.ocrAvailable();
+      } catch (_) {}
+      notifyListeners();
     }
   }
 
@@ -149,7 +155,16 @@ class AppState extends ChangeNotifier {
   Future<void> _refreshSchedule() async {
     if (!nativeReady) return;
     try {
-      scheduleEntries = RustCore.schedulerList();
+      final next = RustCore.schedulerList();
+      final sig = next
+          .map((x) =>
+              '${x.id}:${x.enabled ? 1 : 0}:${x.running ? 1 : 0}:${x.runs}:'
+              '${x.lastStatus ?? '-'}:${x.newFindings ?? -1}:${x.findingsTotal}:'
+              '${(x.dueIn / 30).floor()}')
+          .join('|');
+      if (sig == _lastScheduleSig) return;
+      _lastScheduleSig = sig;
+      scheduleEntries = next;
       notifyListeners();
     } catch (_) {}
   }
@@ -326,6 +341,13 @@ class AppState extends ChangeNotifier {
   }
 
   void startScan(String query) {
+    // free the previous finished scan's native snapshot before replacing it
+    final previousId = activeScan?.scanId;
+    if (previousId != null && activeScan?.running != true) {
+      try {
+        RustCore.scanRelease(previousId);
+      } catch (_) {}
+    }
     final enabled = modules.where((m) => !disabledModules.contains(m.id)).map((m) => m.id).toList();
     final scanId = RustCore.scanStart(
       query,

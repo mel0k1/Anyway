@@ -272,6 +272,9 @@ pub fn import_text(db_path: &str, source: &str, text: &str) -> Result<Value, Str
     if source.trim().is_empty() {
         return Err("source name is required".into());
     }
+    if text.len() > 512 * 1024 * 1024 {
+        return Err("dump too large for one import (>512MB), split the file".into());
+    }
     let mut conn = open(db_path)?;
     let tx = conn.transaction().map_err(|e| format!("tx failed: {e}"))?;
     let now = std::time::SystemTime::now()
@@ -377,7 +380,12 @@ pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool) -> Result<
         return Err("empty query".into());
     }
     let conn = open(db_path)?;
-    let like = format!("%{q}%");
+    // escape LIKE wildcards so a query like "100%" matches literally
+    let escaped = q
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    let like = format!("%{escaped}%");
     let field = if is_email(&q) {
         "email"
     } else if is_phone_token(&q) {
@@ -391,7 +399,7 @@ pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool) -> Result<
     let mut stmt = conn
         .prepare(&format!(
             "SELECT source, email, username, phone, password, ip, domain, hash, extra, line_no
-             FROM records WHERE {field} LIKE ?1 ORDER BY source, id LIMIT ?2"
+             FROM records WHERE {field} LIKE ?1 ESCAPE '\\' ORDER BY source, id LIMIT ?2"
         ))
         .map_err(|e| format!("query failed: {e}"))?;
     let rows = stmt
@@ -429,7 +437,7 @@ pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool) -> Result<
     }
     let total: u64 = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM records WHERE {field} LIKE ?1"),
+            &format!("SELECT COUNT(*) FROM records WHERE {field} LIKE ?1 ESCAPE '\\'"),
             rusqlite::params![like],
             |r| r.get::<_, i64>(0),
         )
@@ -566,6 +574,26 @@ mod tests {
         assert_eq!(r.password, "pw");
         assert_eq!(r.ip, "1.2.3.4");
         assert!(parse_line(r#"{"foo": 1}"#).is_none());
+    }
+
+    #[test]
+    fn search_escapes_like_wildcards() {
+        let db = temp_db("escape");
+        let text = "aXb:pass1\na%b:pass2\na_b:pass3\n";
+        import_text(&db, "wildcards", text).unwrap();
+        // % and _ match literally, not as SQL wildcards
+        assert_eq!(search(&db, "a%b", 10, false).unwrap()["total"], 1);
+        assert_eq!(search(&db, "a_b", 10, false).unwrap()["total"], 1);
+        assert_eq!(
+            search(&db, "a_b", 10, false).unwrap()["matches"][0]["username"],
+            "a_b"
+        );
+        // a bare wildcard query finds only records containing that literal char
+        assert_eq!(search(&db, "%", 10, false).unwrap()["total"], 1);
+        assert_eq!(search(&db, "_", 10, false).unwrap()["total"], 1);
+        // plain substring search matches all three
+        assert_eq!(search(&db, "a", 10, false).unwrap()["total"], 3);
+        let _ = std::fs::remove_file(&db);
     }
 
     #[test]

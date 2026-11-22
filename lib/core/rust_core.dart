@@ -335,6 +335,10 @@ class RustCore {
   static bool schedulerRemove(String id) =>
       _json1('anyway_scheduler_remove', id)['ok'] == true;
 
+  /// Free a finished scan's native snapshot; a running scan is refused.
+  static bool scanRelease(String scanId) =>
+      _json1('anyway_scan_release', scanId)['ok'] == true;
+
   static void schedulerRunNow(String id) =>
       _must(_json1('anyway_scheduler_run_now', id), 'scheduler run')['ok'] == true;
 

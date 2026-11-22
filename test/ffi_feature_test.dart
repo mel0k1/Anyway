@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:anyway/core/models.dart';
 import 'package:anyway/core/rust_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -106,5 +107,20 @@ void main() {
     expect(entries.first.dueIn, greaterThan(0));
     expect(RustCore.schedulerRemove(id), isTrue);
     expect(RustCore.schedulerList(), hasLength(0));
+
+    // ---------- Scan lifecycle: finish, release, then unknown ----------
+    final badId = RustCore.scanStart('example.org', proxy: 'bad://x');
+    ScanSnapshot? snap;
+    for (var i = 0; i < 50; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      snap = RustCore.scanPoll(badId);
+      if (snap != null && !snap.running) break;
+    }
+    expect(snap?.status, 'failed');
+    expect(RustCore.scanRelease(badId), isTrue);
+    // released scans are unknown to the manager; poll reports null
+    expect(RustCore.scanPoll(badId), isNull);
+    // releasing again is a clean no-op false
+    expect(RustCore.scanRelease(badId), isFalse);
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

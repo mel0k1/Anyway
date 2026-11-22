@@ -151,6 +151,25 @@ pub unsafe extern "C" fn anyway_scan_cancel(scan_id: *const c_char) -> *mut c_ch
     }
 }
 
+/// Drop a finished scan's handle so its snapshot memory can be freed. A
+/// running scan must not be released: it would become unreachable while
+/// still working.
+#[no_mangle]
+pub unsafe extern "C" fn anyway_scan_release(scan_id: *const c_char) -> *mut c_char {
+    let id = read_str(scan_id);
+    // clone the handle and drop the manager guard before any second lock
+    let handle = manager().lock().expect("manager").get(&id).cloned();
+    let Some(h) = handle else {
+        return to_ptr(json!({"ok": false}));
+    };
+    let running = runtime().block_on(async { h.state.read().await.status == "running" });
+    if running {
+        return err_ptr("scan is still running");
+    }
+    let removed = manager().lock().expect("manager").remove(&id).is_some();
+    to_ptr(json!({"ok": removed}))
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn anyway_scan_pivot(
     scan_id: *const c_char,

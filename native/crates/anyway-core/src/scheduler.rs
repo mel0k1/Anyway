@@ -178,15 +178,20 @@ pub fn spawn_run(entry: Arc<AsyncMutex<SchedulerEntry>>) {
 }
 
 async fn run_entry(entry: Arc<AsyncMutex<SchedulerEntry>>) {
-    let (query, options, interval) = {
+    let (id, query, options, interval) = {
         let mut e = entry.lock().await;
         if e.running {
             return;
         }
         e.running = true;
-        (e.query.clone(), e.options.clone(), e.interval_secs)
+        (
+            e.id.clone(),
+            e.query.clone(),
+            e.options.clone(),
+            e.interval_secs,
+        )
     };
-    let scan_id = format!("sched-{}-{}", entry.lock().await.id, unix_now());
+    let scan_id = format!("sched-{}-{}", id, unix_now());
     let handle: ScanHandle = engine::launch(scan_id.clone(), query, options);
     let final_snapshot = watch(handle).await;
     let mut e = entry.lock().await;
