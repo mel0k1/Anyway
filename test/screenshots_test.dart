@@ -675,8 +675,32 @@ void main() {
     );
   }, timeout: const Timeout(Duration(minutes: 3)));
 
+  testWidgets('screenshot images', (tester) async {
+    await _pump(tester, _state(), index: 4);
+    await expectLater(
+      find.byType(AnywayApp),
+      matchesGoldenFile('goldens/08_images.png'),
+    );
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('screenshot leaks', (tester) async {
+    await _pump(tester, _state(), index: 5);
+    await expectLater(
+      find.byType(AnywayApp),
+      matchesGoldenFile('goldens/09_leaks.png'),
+    );
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('screenshot planner', (tester) async {
+    await _pump(tester, _state(), index: 6);
+    await expectLater(
+      find.byType(AnywayApp),
+      matchesGoldenFile('goldens/10_planner.png'),
+    );
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
   testWidgets('screenshot cases', (tester) async {
-    await _pump(tester, _state(done: _doneSnapshot()), index: 4);
+    await _pump(tester, _state(done: _doneSnapshot()), index: 7);
     await expectLater(
       find.byType(AnywayApp),
       matchesGoldenFile('goldens/05_cases.png'),
@@ -684,7 +708,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('screenshot modules', (tester) async {
-    await _pump(tester, _state(), index: 5);
+    await _pump(tester, _state(), index: 8);
     await expectLater(
       find.byType(AnywayApp),
       matchesGoldenFile('goldens/06_modules.png'),
@@ -692,7 +716,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('screenshot settings', (tester) async {
-    await _pump(tester, _state(), index: 6);
+    await _pump(tester, _state(), index: 9);
     await expectLater(
       find.byType(AnywayApp),
       matchesGoldenFile('goldens/07_settings.png'),

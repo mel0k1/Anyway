@@ -44,6 +44,13 @@ flutter run -d linux   # or: flutter run -d windows
 - **Multiple targets in one scan** — separate them with commas: `user1, user2, example.org`
 - **Proxy & Tor** — route every request through `http`, `https`, `socks5` or `socks5h` (one click for a local Tor daemon), with a hard fail instead of a silent fallback if the proxy is invalid
 - **Search dorks** — every scan ends with one-click deep links for Google, Bing, DuckDuckGo, Yandex, GitHub, Pastebin, Shodan, Censys, VirusTotal, Wayback and more, preloaded with the target
+- **Tor routing modes** — the network layer speaks `socks5h` natively and defaults to **Auto**: when a local Tor SOCKS port is listening (9050 or the Tor Browser's 9150), every scan silently routes through the circuit; **On** is fail-closed — scans refuse to leak traffic when Tor is down — and **Off** never touches Tor. A live status check verifies the exit node end to end
+- **Re-scan planner** — schedule username, email, domain or phone targets to be re-scanned every 15 minutes, hour, 6 hours, day or week while the app is open; each run is diffed against the previous one and new findings are flagged, so new accounts, breaches or DNS changes surface on their own
+- **Visual recon** — perceptual hashing (pHash via DCT, dHash, aHash) identifies the same picture across re-encodes and crops, the local CBIR index matches images you already analysed, OCR pulls text out of screenshots and photos through the system tesseract, and deep links hand image URLs to Google Lens, Yandex, Bing and TinEye
+- **Cross-platform correlation** — a resolver extracts identities (profiles, API profiles, e-mail evidence) from any scan and scores every pair on handle equality, edit distance, display names, shared e-mails and phones, avatar pHash and bio overlap; clusters above the confidence threshold are shown in Results with the full evidence breakdown
+- **Activity timeline** — every date-bearing detail in a scan (breach dates, account registrations, RDAP events, certificate issue/expiry history) is merged into one chronological timeline per case
+- **Local leak index** — import breach dumps (`email:pass`, `user:email:pass`, JSONL, CSV) into an on-device SQLite index and search it instantly by e-mail, username, phone or domain; passwords stay masked unless revealed, nothing ever leaves the machine — no Have I Been Pwned key needed for the data you already have
+- **Cloudflare & certificate history** — the domain module flags A records that fall into Cloudflare's announced ranges (the origin is hidden), reverse-resolves them, and builds a certificate history from crt.sh with issuers and the earliest issuance date, the classic starting point for origin-IP hunts
 
 ## Modules
 
@@ -57,7 +64,7 @@ flutter run -d linux   # or: flutter run -d windows
 | `email.accounts` | Email | Holehe-style registration / login / password-recovery probes across **20 services** that confirm which accounts are linked to the address |
 | `email.breaches` | Email | Have I Been Pwned breach lookup: dates, exposed record counts and data classes per breach (free HIBP API key required) |
 | `ip.intel` | IP | Geo / ASN / ISP flags via ip-api, RDAP registration data with abuse contacts, reverse DNS |
-| `domain.intel` | Domain | RDAP whois, A / AAAA / MX / NS / TXT over DoH, subdomain harvest from crt.sh |
+| `domain.intel` | Domain | RDAP whois, A / AAAA / MX / NS / TXT over DoH, subdomain harvest from crt.sh, certificate history with issuers and first-issuance dates, Cloudflare CDN detection with reverse DNS of the A records |
 | `phone.analysis` | Phone | libphonenumber parsing: country, line type, validity, E.164 / international formats |
 | `file.exif` | File | EXIF extraction: device, software, timestamps, GPS with a map link |
 
@@ -91,7 +98,7 @@ Dark-first Material 3 Expressive: a top navigation shell with soft rounded corne
 
 - The Rust core owns the network: a Tokio engine fans every module out concurrently with a shared client, per-module progress and cancellation.
 - Every snapshot ships a `graph` object — nodes and typed, confidence-scored edges derived from the findings, so the UI and exports always agree with the core.
-- The FFI surface is a small C ABI (`anyway_scan_start` / `anyway_scan_poll` / `anyway_scan_cancel`) speaking JSON — no codegen, no magic.
+- The FFI surface is a small C ABI (`anyway_scan_start` / `anyway_scan_poll` / `anyway_scan_cancel` plus imaging, leaks, scheduler, resolver and Tor-status endpoints) speaking JSON — no codegen, no magic.
 - CMake invokes Cargo during the Flutter build, so `flutter run -d linux` builds the native core automatically.
 - Every finished scan is archived as a case under the app support directory.
 
@@ -138,7 +145,7 @@ linux/ windows/           desktop runners wired to Cargo
 
 ## Roadmap
 
-A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Landed so far: email → registered accounts probing, breach intel, a self-contained HTML report with the embedded graph, recursive graph pivoting and the Maigret long-tail database.
+A feature-by-feature comparison with Sherlock, Maigret, Blackbird, holehe, theHarvester, SpiderFoot and Maltego — including what is missing here — lives in [docs/COMPARISON.md](docs/COMPARISON.md). Landed so far: email → registered accounts probing, breach intel, a self-contained HTML report with the embedded graph, recursive graph pivoting, the Maigret long-tail database, Tor routing with fail-closed mode, the re-scan planner, visual recon (perceptual hashes, local CBIR index, OCR, reverse-search links), cross-platform correlation with activity timelines, the local leak-dump index and Cloudflare/certificate history for domain intel.
 
 ## Credits
 

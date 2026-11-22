@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'case_store.dart';
@@ -23,6 +25,8 @@ class AppState extends ChangeNotifier {
   int timeoutSecs = 12;
   String userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
   String proxy = '';
+  String torMode = 'auto';
+  int torSocksPort = 9050;
   String hibpApiKey = '';
   Set<String> disabledModules = {};
   bool pivotEnabled = true;
@@ -36,11 +40,16 @@ class AppState extends ChangeNotifier {
   List<CategoryInfo> countries = [];
   Set<String> selectedCountries = {};
   String? detectedBrowser;
+  TorStatus? torStatus;
 
   ScanSnapshot? activeScan;
   ScanSnapshot? lastSnapshot;
   Timer? _pollTimer;
   List<CaseMeta> caseList = [];
+
+  List<ScheduleEntryInfo> scheduleEntries = [];
+  Timer? _scheduleTimer;
+  File? _scheduleFile;
 
   bool get darkTheme => _darkTheme;
 
@@ -54,6 +63,8 @@ class AppState extends ChangeNotifier {
     timeoutSecs = prefs.getInt('timeoutSecs') ?? 12;
     userAgent = prefs.getString('userAgent') ?? userAgent;
     proxy = prefs.getString('proxy') ?? '';
+    torMode = prefs.getString('torMode') ?? 'auto';
+    torSocksPort = prefs.getInt('torSocksPort') ?? 9050;
     hibpApiKey = prefs.getString('hibpApiKey') ?? '';
     disabledModules = (prefs.getStringList('disabledModules') ?? []).toSet();
     pivotEnabled = prefs.getBool('pivotEnabled') ?? true;
@@ -77,6 +88,110 @@ class AppState extends ChangeNotifier {
     }
     caseList = await cases.list();
     notifyListeners();
+    if (nativeReady) {
+      await _initScheduler();
+      unawaited(checkTor());
+      _scheduleTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshSchedule());
+    }
+  }
+
+  // ---------- Tor ----------
+
+  String _torOptionsJson() => jsonEncode({
+        'tor_mode': torMode,
+        'tor_socks_port': torSocksPort,
+        'proxy': proxy,
+      });
+
+  Future<void> checkTor() async {
+    if (!nativeReady) return;
+    try {
+      torStatus = TorStatus.fromJson(RustCore.torCheck(_torOptionsJson()));
+    } catch (_) {
+      torStatus = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> setTorMode(String v) async {
+    torMode = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('torMode', v);
+    notifyListeners();
+    await checkTor();
+  }
+
+  Future<void> setTorSocksPort(int v) async {
+    torSocksPort = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('torSocksPort', v);
+    notifyListeners();
+    await checkTor();
+  }
+
+  // ---------- Scan scheduler ----------
+
+  Future<void> _initScheduler() async {
+    try {
+      final base = await getApplicationSupportDirectory();
+      final file = File('${base.path}${Platform.pathSeparator}scheduler.json');
+      _scheduleFile = file;
+      if (await file.exists()) {
+        final raw = await file.readAsString();
+        if (raw.trim().isNotEmpty) {
+          RustCore.schedulerSet(raw);
+        }
+      }
+    } catch (_) {}
+    await _refreshSchedule();
+  }
+
+  Future<void> _refreshSchedule() async {
+    if (!nativeReady) return;
+    try {
+      scheduleEntries = RustCore.schedulerList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _persistSchedule() async {
+    if (_scheduleFile == null) return;
+    try {
+      final list = scheduleEntries.map((e) => jsonEncode(e.toPersisted())).toList();
+      await _scheduleFile!.writeAsString('[${list.join(',')}]');
+    } catch (_) {}
+  }
+
+  Future<void> addSchedule(String query, int intervalSecs, {bool enabled = true}) async {
+    RustCore.schedulerUpsert(jsonEncode({
+      'query': query,
+      'interval_secs': intervalSecs,
+      'enabled': enabled,
+    }));
+    await _refreshSchedule();
+    await _persistSchedule();
+  }
+
+  Future<void> setScheduleEnabled(ScheduleEntryInfo e, bool enabled) async {
+    RustCore.schedulerUpsert(jsonEncode({
+      'id': e.id,
+      'query': e.query,
+      'interval_secs': e.intervalSecs,
+      'enabled': enabled,
+    }));
+    await _refreshSchedule();
+    await _persistSchedule();
+  }
+
+  Future<void> removeSchedule(String id) async {
+    RustCore.schedulerRemove(id);
+    await _refreshSchedule();
+    await _persistSchedule();
+  }
+
+  Future<void> runScheduleNow(String id) async {
+    RustCore.schedulerRunNow(id);
+    await _refreshSchedule();
   }
 
   Future<void> setDarkTheme(bool v) async {
@@ -218,6 +333,8 @@ class AppState extends ChangeNotifier {
       timeoutSecs: timeoutSecs,
       userAgent: userAgent,
       proxy: proxy,
+      torMode: torMode,
+      torSocksPort: torSocksPort,
       hibpApiKey: hibpApiKey,
       modules: enabled,
       pivot: pivotEnabled,
@@ -327,6 +444,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _scheduleTimer?.cancel();
     super.dispose();
   }
 }

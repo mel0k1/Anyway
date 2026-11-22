@@ -457,3 +457,184 @@ TargetKind detectTargetKind(String query) {
   if (RegExp(r'^[A-Za-z0-9._-]{1,64}$').hasMatch(q)) return TargetKind.username;
   return TargetKind.unknown;
 }
+
+class ScheduleEntryInfo {
+  final String id;
+  final String query;
+  final int intervalSecs;
+  final bool enabled;
+  final bool running;
+  final int runs;
+  final int? lastRun;
+  final int nextRun;
+  final int dueIn;
+  final String? lastStatus;
+  final int? newFindings;
+  final int findingsTotal;
+
+  const ScheduleEntryInfo({
+    required this.id,
+    required this.query,
+    required this.intervalSecs,
+    required this.enabled,
+    required this.running,
+    required this.runs,
+    required this.nextRun,
+    required this.dueIn,
+    required this.findingsTotal,
+    this.lastRun,
+    this.lastStatus,
+    this.newFindings,
+  });
+
+  factory ScheduleEntryInfo.fromJson(Map<String, dynamic> j) => ScheduleEntryInfo(
+        id: j['id'] as String? ?? '',
+        query: j['query'] as String? ?? '',
+        intervalSecs: (j['interval_secs'] as num?)?.toInt() ?? 3600,
+        enabled: j['enabled'] as bool? ?? false,
+        running: j['running'] as bool? ?? false,
+        runs: (j['runs'] as num?)?.toInt() ?? 0,
+        lastRun: (j['last_run'] as num?)?.toInt(),
+        nextRun: (j['next_run'] as num?)?.toInt() ?? 0,
+        dueIn: (j['due_in'] as num?)?.toInt() ?? 0,
+        lastStatus: j['last_status'] as String?,
+        newFindings: (j['new_findings'] as num?)?.toInt(),
+        findingsTotal: (j['findings_total'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toPersisted() => {
+        'id': id,
+        'query': query,
+        'interval_secs': intervalSecs,
+        'enabled': enabled,
+      };
+}
+
+class TorStatus {
+  final bool listening;
+  final bool? isTor;
+  final String? exitIp;
+  final String proxy;
+  final String mode;
+
+  const TorStatus({
+    required this.listening,
+    required this.proxy,
+    required this.mode,
+    this.isTor,
+    this.exitIp,
+  });
+
+  factory TorStatus.fromJson(Map<String, dynamic> j) => TorStatus(
+        listening: j['listening'] as bool? ?? false,
+        isTor: j['isTor'] as bool?,
+        exitIp: j['exitIp'] as String?,
+        proxy: j['proxy'] as String? ?? '',
+        mode: j['mode'] as String? ?? 'auto',
+      );
+}
+
+class ImageHashInfo {
+  final String ahash;
+  final String dhash;
+  final String phash;
+  final int width;
+  final int height;
+  final String format;
+  final Map<String, dynamic>? ocr;
+
+  const ImageHashInfo({
+    required this.ahash,
+    required this.dhash,
+    required this.phash,
+    required this.width,
+    required this.height,
+    required this.format,
+    this.ocr,
+  });
+
+  factory ImageHashInfo.fromJson(Map<String, dynamic> j) => ImageHashInfo(
+        ahash: j['ahash'] as String? ?? '',
+        dhash: j['dhash'] as String? ?? '',
+        phash: j['phash'] as String? ?? '',
+        width: (j['width'] as num?)?.toInt() ?? 0,
+        height: (j['height'] as num?)?.toInt() ?? 0,
+        format: j['format'] as String? ?? '',
+        ocr: j['ocr'] is Map<String, dynamic> ? j['ocr'] as Map<String, dynamic> : null,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'ahash': ahash,
+        'dhash': dhash,
+        'phash': phash,
+        'width': width,
+        'height': height,
+        'format': format,
+      };
+}
+
+class TimelineEventInfo {
+  final int? ts;
+  final String date;
+  final String label;
+  final String kind;
+  final String source;
+  final String url;
+
+  const TimelineEventInfo({
+    required this.date,
+    required this.label,
+    required this.kind,
+    required this.source,
+    required this.url,
+    this.ts,
+  });
+
+  factory TimelineEventInfo.fromJson(Map<String, dynamic> j) => TimelineEventInfo(
+        ts: (j['ts'] as num?)?.toInt(),
+        date: j['date'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        kind: j['kind'] as String? ?? '',
+        source: j['source'] as String? ?? '',
+        url: j['url'] as String? ?? '',
+      );
+}
+
+class LeakRecord {
+  final String source;
+  final String email;
+  final String username;
+  final String phone;
+  final String password;
+  final String ip;
+  final String domain;
+  final String hash;
+  final String extra;
+  final int line;
+
+  const LeakRecord({
+    required this.source,
+    required this.email,
+    required this.username,
+    required this.phone,
+    required this.password,
+    required this.ip,
+    required this.domain,
+    required this.hash,
+    required this.extra,
+    required this.line,
+  });
+
+  factory LeakRecord.fromJson(Map<String, dynamic> j) => LeakRecord(
+        source: j['source'] as String? ?? '',
+        email: j['email'] as String? ?? '',
+        username: j['username'] as String? ?? '',
+        phone: j['phone'] as String? ?? '',
+        password: j['password'] as String? ?? '',
+        ip: j['ip'] as String? ?? '',
+        domain: j['domain'] as String? ?? '',
+        hash: j['hash'] as String? ?? '',
+        extra: j['extra'] as String? ?? '',
+        line: (j['line'] as num?)?.toInt() ?? 0,
+      );
+}

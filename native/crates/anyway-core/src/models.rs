@@ -49,12 +49,56 @@ pub struct ScanRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PivotLink {
+    pub parent: String,
+    pub parent_kind: TargetKind,
+    pub child: Target,
+    pub depth: u32,
+    pub via: String,
+}
+
+/// How the scan should route network traffic.
+/// - `Auto`: use a local Tor SOCKS port when one is listening, otherwise go direct.
+/// - `On`: always route through Tor; the scan fails closed when Tor is unreachable.
+/// - `Off`: never touch Tor, use the explicit proxy (or direct) as configured.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TorMode {
+    #[default]
+    Auto,
+    On,
+    Off,
+}
+
+impl TorMode {
+    pub fn from_wire(s: &str) -> Self {
+        match s {
+            "on" => TorMode::On,
+            "off" => TorMode::Off,
+            _ => TorMode::Auto,
+        }
+    }
+
+    pub fn wire(&self) -> &'static str {
+        match self {
+            TorMode::Auto => "auto",
+            TorMode::On => "on",
+            TorMode::Off => "off",
+        }
+    }
+}
+
+pub const TOR_DEFAULT_PORT: u16 = 9050;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ScanOptions {
     pub concurrency: u32,
     pub timeout_secs: u64,
     pub user_agent: String,
     pub proxy: String,
+    pub tor_mode: TorMode,
+    pub tor_socks_port: u16,
     pub hibp_api_key: String,
     pub enabled_modules: Vec<String>,
     pub pivot: bool,
@@ -74,6 +118,8 @@ impl Default for ScanOptions {
             timeout_secs: 12,
             user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36".to_string(),
             proxy: String::new(),
+            tor_mode: TorMode::Auto,
+            tor_socks_port: TOR_DEFAULT_PORT,
             hibp_api_key: String::new(),
             enabled_modules: Vec::new(),
             pivot: false,
@@ -94,15 +140,34 @@ impl ScanOptions {
         let (scheme, _) = p.split_once("://")?;
         Some(scheme.to_ascii_lowercase())
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PivotLink {
-    pub parent: String,
-    pub parent_kind: TargetKind,
-    pub child: Target,
-    pub depth: u32,
-    pub via: String,
+    pub fn tor_proxy_url(&self) -> String {
+        format!("socks5h://127.0.0.1:{}", self.tor_socks_port)
+    }
+
+    /// Resolve which proxy URL the scan should use.
+    ///
+    /// `tor_listening` reflects whether the local Tor SOCKS port accepted a TCP
+    /// connection. An explicit user proxy always wins; Tor applies otherwise.
+    /// `On` keeps routing through Tor even when unreachable, so the scan fails
+    /// closed instead of leaking traffic.
+    pub fn effective_proxy(&self, tor_listening: bool) -> String {
+        let explicit = self.proxy.trim();
+        if !explicit.is_empty() {
+            return explicit.to_string();
+        }
+        match self.tor_mode {
+            TorMode::Off => String::new(),
+            TorMode::On => self.tor_proxy_url(),
+            TorMode::Auto => {
+                if tor_listening {
+                    self.tor_proxy_url()
+                } else {
+                    String::new()
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

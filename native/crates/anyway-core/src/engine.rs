@@ -1,5 +1,5 @@
 use crate::detect::detect_target;
-use crate::models::{Finding, ModuleProgress, PivotLink, ScanOptions, Target, TargetKind};
+use crate::models::{Finding, ModuleProgress, PivotLink, ScanOptions, Target, TargetKind, TorMode};
 use crate::modules::{registry, Module};
 use serde_json::json;
 use std::collections::HashSet;
@@ -475,7 +475,7 @@ pub async fn manual_pivot(handle: &ScanHandle, node_id: &str) -> Result<Target, 
     Ok(target)
 }
 
-pub fn launch(scan_id: String, query: String, options: ScanOptions) -> ScanHandle {
+pub fn launch(scan_id: String, query: String, mut options: ScanOptions) -> ScanHandle {
     let raw = query.trim().to_string();
     let tokens = split_targets(&raw);
     let targets: Vec<Target> = tokens.iter().map(|t| detect_target(t)).collect();
@@ -489,12 +489,35 @@ pub fn launch(scan_id: String, query: String, options: ScanOptions) -> ScanHandl
         normalized: raw.to_lowercase(),
     };
 
-    let client = crate::http::build_client(&options);
-    let network_note = if options.proxy.trim().is_empty() {
+    let listening = crate::tor::tor_listening(&options);
+    let requested_proxy = options.proxy.clone();
+    let effective = options.effective_proxy(listening);
+    let explicit_proxy = !requested_proxy.trim().is_empty();
+    if !explicit_proxy {
+        options.proxy = effective;
+    }
+    let network_note = if !explicit_proxy && options.tor_mode != TorMode::Off {
+        if options.proxy == options.tor_proxy_url() {
+            format!(
+                "network: Tor (mode {}, port {}) via {}",
+                options.tor_mode.wire(),
+                options.tor_socks_port,
+                options.tor_proxy_url()
+            )
+        } else if options.tor_mode == TorMode::On {
+            format!(
+                "network: Tor (mode on) requested but port {} is not listening - requests will fail closed",
+                options.tor_socks_port
+            )
+        } else {
+            "network: direct (Tor unreachable in auto mode)".to_string()
+        }
+    } else if options.proxy.trim().is_empty() {
         "network: direct".to_string()
     } else {
         "network: via proxy".to_string()
     };
+    let client = crate::http::build_client(&options);
     let pivot_note = if options.pivot {
         format!(
             "pivot: enabled (depth {}, budget {})",

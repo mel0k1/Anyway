@@ -4,7 +4,10 @@ import 'core/app_state.dart';
 import 'ui/screens/cases_screen.dart';
 import 'ui/screens/dashboard_screen.dart';
 import 'ui/screens/graph_screen.dart';
+import 'ui/screens/images_screen.dart';
+import 'ui/screens/leaks_screen.dart';
 import 'ui/screens/modules_screen.dart';
+import 'ui/screens/planner_screen.dart';
 import 'ui/screens/results_screen.dart';
 import 'ui/screens/scan_screen.dart';
 import 'ui/screens/settings_screen.dart';
@@ -50,6 +53,9 @@ class _ShellState extends State<Shell> {
     (Icons.radar_outlined, Icons.radar, 'Scan'),
     (Icons.fact_check_outlined, Icons.fact_check, 'Results'),
     (Icons.hub_outlined, Icons.hub, 'Graph'),
+    (Icons.image_outlined, Icons.image, 'Images'),
+    (Icons.storage_outlined, Icons.storage, 'Leaks'),
+    (Icons.schedule_outlined, Icons.schedule, 'Planner'),
     (Icons.folder_outlined, Icons.folder, 'Cases'),
     (Icons.grid_view_outlined, Icons.grid_view, 'Modules'),
     (Icons.settings_outlined, Icons.settings, 'Settings'),
@@ -69,6 +75,9 @@ class _ShellState extends State<Shell> {
         onOpenGraph: () => setState(() => _index = 3),
       ),
       GraphScreen(state: state),
+      const ImagesScreen(),
+      const LeaksScreen(),
+      PlannerScreen(state: state),
       CasesScreen(state: state, onOpenCase: () => setState(() => _index = 2)),
       ModulesScreen(state: state),
       SettingsScreen(state: state),

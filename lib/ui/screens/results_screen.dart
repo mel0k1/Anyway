@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
+import '../../core/rust_core.dart';
 import '../widgets/finding_card.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -92,6 +94,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 onPressed: () => _export(context, _ExportFormat.json),
                 icon: const Icon(Icons.data_object),
                 label: const Text('JSON'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonalIcon(
+                onPressed: () => _showCorrelation(context),
+                icon: const Icon(Icons.join_inner, size: 18),
+                label: const Text('Correlate'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonalIcon(
+                onPressed: () => _showTimeline(context),
+                icon: const Icon(Icons.timeline, size: 18),
+                label: const Text('Timeline'),
               ),
               const SizedBox(width: 12),
               if (widget.onOpenGraph != null)
@@ -190,6 +204,145 @@ class _ResultsScreenState extends State<ResultsScreen> {
       messenger.showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+
+  /// Cross-platform entity resolution over the current snapshot.
+  Future<void> _showCorrelation(BuildContext context) async {
+    final snap = widget.state.lastSnapshot ?? widget.state.activeScan;
+    if (snap == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final report = RustCore.resolveEntities(jsonEncode(snap.toJson()), 45);
+      final identities = ((report['identities'] as List?) ?? const []).length;
+      final pairs = ((report['pairs'] as List?) ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList();
+      final clusters = ((report['clusters'] as List?) ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .where((c) => (c['size'] as num?)!.toInt() > 1)
+          .toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cross-platform correlation'),
+          content: SizedBox(
+            width: 560,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Text(
+                  '$identities identities extracted · ${pairs.length} correlated pairs · ${clusters.length} clusters',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                if (clusters.isEmpty)
+                  Text(
+                    'No confident cross-platform matches found in this scan. Pairs score 45+ when handles, display names, emails or phones line up',
+                  ),
+                for (final c in clusters) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Cluster "${c['label']}" (${c['size']} identities)',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 6),
+                        for (final m in ((c['members'] as List?) ?? const []))
+                          Text(
+                            '· ${(m as Map)['platform']}: ${m['handle']}  (${m['category']})',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text('Top pairs', style: const TextStyle(fontWeight: FontWeight.w700)),
+                for (final p in pairs.take(12))
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Text(
+                      (p['score'] ?? 0).toString(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: (p['score'] as num).toInt() >= 70 ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                    title: Text(
+                      (p['reasons'] as List).map((r) => (r as Map)['reason']).join(' + '),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    subtitle: Text('confidence: ${p['confidence']}'),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ],
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Correlation failed: $e')));
+    }
+  }
+
+  /// Unified activity timeline assembled from every date-bearing detail field.
+  Future<void> _showTimeline(BuildContext context) async {
+    final snap = widget.state.lastSnapshot ?? widget.state.activeScan;
+    if (snap == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final timeline = RustCore.buildTimeline(jsonEncode(snap.toJson()));
+      final events = ((timeline['events'] as List?) ?? const [])
+          .map((e) => TimelineEventInfo.fromJson((e as Map).cast<String, dynamic>()))
+          .toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Activity timeline · ${events.length} events'),
+          content: SizedBox(
+            width: 560,
+            child: events.isEmpty
+                ? const Text(
+                    'No dated events in this scan yet. Breach dates, account registrations, RDAP events and certificate history appear here',
+                  )
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final e in events)
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.event, size: 16),
+                          title: Text(e.label, style: const TextStyle(fontSize: 13)),
+                          subtitle: Text(
+                            '${e.date.isEmpty ? 'date unknown' : e.date} · ${e.source}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ],
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Timeline failed: $e')));
     }
   }
 }

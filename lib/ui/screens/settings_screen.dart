@@ -133,6 +133,72 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         _Section(
+          title: 'Tor routing',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Auto routes every scan through a local Tor SOCKS port when one is listening and falls back to direct otherwise. On is fail-closed: scans never leak traffic when Tor is down, they simply fail. Off never touches Tor',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'auto', icon: Icon(Icons.auto_mode), label: Text('Auto')),
+                  ButtonSegment(value: 'on', icon: Icon(Icons.vpn_lock), label: Text('On')),
+                  ButtonSegment(value: 'off', icon: Icon(Icons.link_off), label: Text('Off')),
+                ],
+                selected: {state.torMode},
+                onSelectionChanged: (s) => state.setTorMode(s.first),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('9050 (tor service)'),
+                    selected: state.torSocksPort == 9050,
+                    onSelected: (_) => state.setTorSocksPort(9050),
+                  ),
+                  FilterChip(
+                    label: const Text('9150 (Tor Browser)'),
+                    selected: state.torSocksPort == 9150,
+                    onSelected: (_) => state.setTorSocksPort(9150),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    state.torStatus?.listening == true && state.torStatus?.isTor == true
+                        ? Icons.verified_user
+                        : Icons.help_outline,
+                    size: 18,
+                    color: state.torStatus?.listening == true && state.torStatus?.isTor == true
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _torStatusText(state),
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ActionChip(
+                    avatar: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Check now'),
+                    onPressed: () => state.checkTor(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _Section(
           title: 'Pivoting',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,7 +468,7 @@ class SettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Anyway v0.2.0', style: textTheme.bodyMedium),
+              Text('Anyway v0.3.0', style: textTheme.bodyMedium),
               const SizedBox(height: 4),
               Text('Cross-platform OSINT workstation · GPL-3.0', style: TextStyle(color: scheme.onSurfaceVariant)),
               const SizedBox(height: 12),
@@ -444,6 +510,19 @@ class _Section extends StatelessWidget {
       ),
     );
   }
+}
+
+String _torStatusText(AppState state) {
+  final t = state.torStatus;
+  if (t == null) return 'Tor status unknown — run a check';
+  if (!t.listening) {
+    return 'No Tor SOCKS port on 127.0.0.1:${state.torSocksPort}'
+        '${state.torMode == 'on' ? ' — scans will fail closed' : ''}';
+  }
+  if (t.isTor == true) {
+    return 'Tor route verified${t.exitIp == null ? '' : ' · exit: ${t.exitIp}'}';
+  }
+  return 'Port open but the exit check did not confirm Tor traffic';
 }
 
 
