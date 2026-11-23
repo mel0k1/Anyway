@@ -16,7 +16,6 @@ void main() {
       final work = await Directory.systemTemp.createTemp('anyway_it_');
       addTearDown(() => work.delete(recursive: true));
 
-      // ---- PDF report through the native core ----
       final snapshot = jsonEncode({
         'scan_id': 'it-scan-1',
         'target': {
@@ -50,7 +49,6 @@ void main() {
       expect(bytes.length, greaterThan(1000));
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
 
-      // ---- persistent entity store: ingest, stats, search, diff ----
       final estoreDb = '${work.path}/estore.db';
       final first = RustCore.estoreIngest(estoreDb, 'it-scan-1', snapshot);
       expect(first['ok'], true);
@@ -76,7 +74,6 @@ void main() {
       final diff = RustCore.estoreDiff(estoreDb, 'it-scan-1', 'it-scan-2');
       expect(diff['ok'], true);
 
-      // ---- leak dump: streamed import from a file, search, stats ----
       final leaksDb = '${work.path}/leaks.db';
       final dump = File('${work.path}/combo.txt');
       await dump.writeAsString(
@@ -123,7 +120,6 @@ void main() {
       final statsLeak = RustCore.leaksStats(leaksDb);
       expect((statsLeak['records'] as num).toInt(), 3);
 
-      // ---- embedded Tor (arti): lifecycle only, no network demands ----
       final arti = RustCore.artiStart(9053, work.path);
       expect(arti['ok'], true);
       final status = RustCore.artiStatus();

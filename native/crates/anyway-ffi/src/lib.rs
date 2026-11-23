@@ -217,8 +217,6 @@ pub unsafe extern "C" fn anyway_arti_status() -> *mut c_char {
     to_ptr(anyway_core::arti::status())
 }
 
-// ---------- Reporting ----------
-
 #[no_mangle]
 pub unsafe extern "C" fn anyway_report_pdf(payload: *const c_char) -> *mut c_char {
     let body = read_str(payload);

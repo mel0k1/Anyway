@@ -403,9 +403,6 @@ class RustCore {
 
   static Map<String, dynamic> artiStatus() => _json0('anyway_arti_status');
 
-  // ---------- Reporting ----------
-
-  /// Renders the snapshot into a one-page-per-section PDF; returns base64 bytes.
   static Map<String, dynamic> reportPdf(String snapshotJson) =>
       _must(_json1('anyway_report_pdf', snapshotJson), 'pdf report');
 

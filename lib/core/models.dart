@@ -282,7 +282,6 @@ class CategoryInfo {
       );
 }
 
-/// One row of the persistent entity store (SQLite-backed, cross-scan).
 class EntityRecord {
   final int id;
   final String kind;
