@@ -59,10 +59,46 @@ jobs:
           name: anyway-windows-x64
           path: anyway-windows-x64.zip
 
+  android:
+    name: Android arm64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Build native library
+        working-directory: native
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: cargo ndk -t arm64-v8a -o ../android/app/src/main/jniLibs build --release
+      - name: Build APK
+        run: flutter pub get && flutter build apk --release --target-platform android-arm64
+      - name: Package
+        run: cp build/app/outputs/flutter-apk/app-release.apk anyway-android-arm64.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anyway-android-arm64
+          path: anyway-android-arm64.apk
+
   release:
     name: GitHub Release
     runs-on: ubuntu-latest
-    needs: [linux, windows]
+    needs: [linux, windows, android]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -70,13 +106,14 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          sha256sum anyway-linux-x64/anyway-linux-x64.tar.gz anyway-windows-x64/anyway-windows-x64.zip > checksums.txt
-          mv anyway-linux-x64/anyway-linux-x64.tar.gz anyway-windows-x64/anyway-windows-x64.zip .
+          sha256sum anyway-linux-x64/anyway-linux-x64.tar.gz anyway-windows-x64/anyway-windows-x64.zip anyway-android-arm64/anyway-android-arm64.apk > checksums.txt
+          mv anyway-linux-x64/anyway-linux-x64.tar.gz anyway-windows-x64/anyway-windows-x64.zip anyway-android-arm64/anyway-android-arm64.apk .
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/anyway-linux-x64.tar.gz
             dist/anyway-windows-x64.zip
+            dist/anyway-android-arm64.apk
             dist/checksums.txt
           fail_on_unmatched_files: true
           generate_release_notes: true

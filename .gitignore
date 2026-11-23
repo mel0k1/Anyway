@@ -32,3 +32,10 @@ windows/flutter/ephemeral/
 
 # Golden test failures
 test/failures/
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/upload-keystore.jks
+android/app/.cxx/
