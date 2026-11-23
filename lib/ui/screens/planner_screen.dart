@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/app_state.dart';
 import '../../core/rust_core.dart';
@@ -47,6 +48,42 @@ class _PlannerScreenState extends State<PlannerScreen> {
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
+          if (widget.state.plannerJournal.isNotEmpty)
+            Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.notifications_active, size: 18),
+                        const SizedBox(width: 8),
+                        Text('Planner events', style: Theme.of(context).textTheme.titleSmall),
+                        const Spacer(),
+                        ActionChip(
+                          avatar: const Icon(Icons.clear_all, size: 16),
+                          label: const Text('Clear'),
+                          onPressed: () => widget.state.clearJournal(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    for (final rec in widget.state.plannerJournal.take(8))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '${_fmtTs(rec['ts'])} · ${rec['query']} · +${rec['total']} new'
+                          '${(rec['added'] as List?) == null || (rec['added'] as List).isEmpty ? '' : ': ${(rec['added'] as List).take(4).join(', ')}${(rec['added'] as List).length > 4 ? '…' : ''}'}',
+                          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -128,11 +165,50 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           e.query,
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        subtitle: Text(
-                          '${_intervalLabel(e.intervalSecs)} · runs: ${e.runs} · findings: ${e.findingsTotal}'
-                          '${e.lastStatus == null ? '' : ' · last: ${e.lastStatus}'}'
-                          '${(e.newFindings ?? 0) > 0 ? ' · ${e.newFindings} NEW' : ''}'
-                          '${e.running ? ' · scanning now' : ' · due in ${_humanDur(e.dueIn)}'}',
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_intervalLabel(e.intervalSecs)} · runs: ${e.runs} · findings: ${e.findingsTotal}'
+                              '${e.lastStatus == null ? '' : ' · last: ${e.lastStatus}'}'
+                              '${(e.newFindings ?? 0) > 0 ? ' · ${e.newFindings} NEW' : ''}'
+                              '${e.running ? ' · scanning now' : ' · due in ${_humanDur(e.dueIn)}'}',
+                            ),
+                            if (e.addedFindings.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    for (final f in e.addedFindings.take(6))
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: scheme.primaryContainer,
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                        child: Text(
+                                          f,
+                                          style: TextStyle(
+                                            fontSize: 10.5,
+                                            color: scheme.onPrimaryContainer,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    if (e.addedFindings.length > 6)
+                                      Text(
+                                        '+${e.addedFindings.length - 6} more',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
                         trailing: Wrap(
                           spacing: 4,
@@ -174,6 +250,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
     if (query.isEmpty) return;
     widget.state.addSchedule(query, _intervalSecs);
     _queryController.clear();
+  }
+
+  String _fmtTs(Object? ts) {
+    final v = (ts as num?)?.toInt() ?? 0;
+    if (v <= 0) return '—';
+    final d = DateTime.fromMillisecondsSinceEpoch(v * 1000);
+    return DateFormat('MM-dd HH:mm').format(d);
   }
 
   String _intervalLabel(int secs) {

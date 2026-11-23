@@ -23,6 +23,7 @@ pub struct SchedulerEntry {
     pub running: bool,
     pub last_status: Option<String>,
     pub new_findings: Option<u64>,
+    pub added_labels: Vec<String>,
     pub last_labels: Vec<String>,
     pub last_snapshot: Option<Value>,
 }
@@ -60,6 +61,7 @@ impl SchedulerEntry {
             running: false,
             last_status: None,
             new_findings: None,
+            added_labels: Vec::new(),
             last_labels: Vec::new(),
             last_snapshot: None,
         })
@@ -77,6 +79,7 @@ impl SchedulerEntry {
             "running": self.running,
             "last_status": self.last_status,
             "new_findings": self.new_findings,
+            "added_findings": self.added_labels.iter().take(25).collect::<Vec<_>>(),
             "due_in": self.next_run.saturating_sub(now),
             "findings_total": self.last_labels.len(),
         })
@@ -113,9 +116,13 @@ fn unix_now() -> u64 {
         .unwrap_or(0)
 }
 
-/// Count labels present now but absent in the previous run.
-pub fn diff_labels(previous: &[String], current: &[String]) -> u64 {
-    current.iter().filter(|l| !previous.contains(l)).count() as u64
+/// Labels present now but absent in the previous run.
+pub fn diff_labels(previous: &[String], current: &[String]) -> Vec<String> {
+    current
+        .iter()
+        .filter(|l| !previous.contains(l))
+        .cloned()
+        .collect()
 }
 
 struct Scheduler {
@@ -204,7 +211,9 @@ async fn run_entry(entry: Arc<AsyncMutex<SchedulerEntry>>) {
         e.last_snapshot = Some(snap.clone());
         if e.last_status.as_deref() == Some("done") {
             let current = SchedulerEntry::labels_from_snapshot(snap);
-            e.new_findings = Some(diff_labels(&e.last_labels, &current));
+            let added = diff_labels(&e.last_labels, &current);
+                e.new_findings = Some(added.len() as u64);
+                e.added_labels = added;
             e.last_labels = current;
         } else {
             // failed or cancelled runs keep the previous baseline
@@ -273,6 +282,7 @@ pub fn upsert(v: &Value) -> Result<Value, String> {
         e.next_run = prev.next_run.max(now + e.interval_secs);
         e.last_status = prev.last_status.clone();
         e.new_findings = prev.new_findings;
+        e.added_labels = prev.added_labels.clone();
         e.last_labels = prev.last_labels.clone();
         e.last_snapshot = prev.last_snapshot.clone();
         insert(e);
@@ -359,9 +369,11 @@ mod tests {
     fn diffs_labels() {
         let prev = vec!["a|1".into(), "b|2".into()];
         let cur = vec!["a|1".into(), "c|3".into(), "d|4".into()];
-        assert_eq!(diff_labels(&prev, &cur), 2);
-        assert_eq!(diff_labels(&[], &cur), 3);
-        assert_eq!(diff_labels(&cur, &cur), 0);
+        let added = diff_labels(&prev, &cur);
+        assert_eq!(added.len(), 2);
+        assert!(added.contains(&"c|3".to_string()));
+        assert_eq!(diff_labels(&[], &cur).len(), 3);
+        assert!(diff_labels(&cur, &cur).is_empty());
     }
 
     #[test]
@@ -403,6 +415,7 @@ mod tests {
             running: false,
             last_status: None,
             new_findings: None,
+            added_labels: Vec::new(),
             last_labels: vec!["old|label".into()],
             last_snapshot: None,
         };
@@ -416,5 +429,6 @@ mod tests {
         // failed scans keep the previous label baseline and report no new findings
         assert_eq!(e.last_labels, vec!["old|label".to_string()]);
         assert_eq!(e.new_findings, None);
+        assert!(e.added_labels.is_empty());
     }
 }

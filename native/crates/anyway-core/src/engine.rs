@@ -490,27 +490,41 @@ pub fn launch(scan_id: String, query: String, mut options: ScanOptions) -> ScanH
     };
 
     let listening = crate::tor::tor_listening(&options);
+    let arti_ready = options.embedded_tor && crate::arti::ready();
+    // auto mode: warm up the embedded client for later scans when nothing is
+    // available right now; this scan still runs direct
+    if options.tor_mode == TorMode::Auto && !listening && !arti_ready && options.embedded_tor {
+        crate::arti::kick_start();
+    }
     let requested_proxy = options.proxy.clone();
-    let effective = options.effective_proxy(listening);
+    let effective = options.effective_proxy_with(listening, arti_ready);
     let explicit_proxy = !requested_proxy.trim().is_empty();
     if !explicit_proxy {
         options.proxy = effective;
     }
     let network_note = if !explicit_proxy && options.tor_mode != TorMode::Off {
-        if options.proxy == options.tor_proxy_url() {
+        let daemon_url = options.tor_proxy_url();
+        let arti_url = format!("socks5h://127.0.0.1:{}", crate::arti::ARTI_SOCKS_PORT);
+        if options.proxy == daemon_url {
             format!(
                 "network: Tor (mode {}, port {}) via {}",
                 options.tor_mode.wire(),
                 options.tor_socks_port,
-                options.tor_proxy_url()
+                daemon_url
+            )
+        } else if options.proxy == arti_url {
+            format!(
+                "network: Tor (mode {}) via embedded arti on port {}",
+                options.tor_mode.wire(),
+                crate::arti::ARTI_SOCKS_PORT
             )
         } else if options.tor_mode == TorMode::On {
             format!(
-                "network: Tor (mode on) requested but port {} is not listening - requests will fail closed",
+                "network: Tor (mode on) requested but neither port {} nor the embedded client are ready - requests will fail closed",
                 options.tor_socks_port
             )
         } else {
-            "network: direct (Tor unreachable in auto mode)".to_string()
+            "network: direct (Tor unreachable in auto mode; embedded client warming up)".to_string()
         }
     } else if options.proxy.trim().is_empty() {
         "network: direct".to_string()

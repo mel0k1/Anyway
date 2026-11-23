@@ -1,5 +1,6 @@
 use rusqlite::Connection;
 use serde_json::{json, Value};
+use std::io::BufRead;
 
 /// Local breach-dump indexing: parse text/JSONL/CSV dumps into a SQLite
 /// database owned by the app and search it by email / username / phone /
@@ -374,7 +375,7 @@ pub fn import_text(db_path: &str, source: &str, text: &str) -> Result<Value, Str
     }))
 }
 
-pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool) -> Result<Value, String> {
+pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool, field_override: Option<&str>) -> Result<Value, String> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
         return Err("empty query".into());
@@ -386,14 +387,23 @@ pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool) -> Result<
         .replace('%', "\\%")
         .replace('_', "\\_");
     let like = format!("%{escaped}%");
-    let field = if is_email(&q) {
-        "email"
-    } else if is_phone_token(&q) {
-        "phone"
-    } else if is_domain_like(&q) {
-        "domain"
-    } else {
-        "username"
+    const FIELDS: [&str; 6] = ["email", "username", "phone", "domain", "password", "hash"];
+    let field = match field_override {
+        Some(f) if FIELDS.contains(&f) => f,
+        Some(_) => return Err("unknown field; expected email, username, phone, domain, password or hash".into()),
+        None => {
+            if is_email(&q) {
+                "email"
+            } else if is_phone_token(&q) {
+                "phone"
+            } else if is_domain_like(&q) {
+                "domain"
+            } else if is_hashlike(&q) {
+                "hash"
+            } else {
+                "username"
+            }
+        }
     };
     let limit = limit.clamp(1, 1000) as i64;
     let mut stmt = conn
@@ -459,6 +469,82 @@ fn mask(password: &str) -> String {
     }
     let visible = password.chars().take(1).collect::<String>();
     format!("{visible}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}")
+}
+
+/// Streamed import from a file on disk: the dump never travels through
+/// memory as a single Dart string. Line parsing matches `import_text`.
+pub fn import_file(db_path: &str, source: &str, file_path: &str) -> Result<Value, String> {
+    if source.trim().is_empty() {
+        return Err("source name is required".into());
+    }
+    let meta = std::fs::metadata(file_path).map_err(|e| format!("cannot stat dump: {e}"))?;
+    if meta.len() > 2 * 1024 * 1024 * 1024 {
+        return Err("dump too large for one import (>2GB), split the file".into());
+    }
+    let file = std::fs::File::open(file_path).map_err(|e| format!("cannot open dump: {e}"))?;
+    let reader = std::io::BufReader::new(file);
+    let mut conn = open(db_path)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0) as i64;
+    let tx = conn.transaction().map_err(|e| format!("tx failed: {e}"))?;
+    let mut seen = std::collections::HashSet::new();
+    let mut lines_total = 0u64;
+    let mut imported = 0u64;
+    let mut skipped = 0u64;
+    for (idx, line) in reader.lines().enumerate() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => {
+                skipped += 1;
+                continue;
+            }
+        };
+        lines_total += 1;
+        let Some(rec) = parse_line(&line) else {
+            skipped += 1;
+            continue;
+        };
+        let key = format!("{}|{}|{}|{}", rec.email, rec.username, rec.phone, rec.password);
+        if !seen.insert(key) {
+            skipped += 1;
+            continue;
+        }
+        tx.execute(
+            "INSERT INTO records (source, email, username, phone, password, ip, domain, hash, extra, line_no)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                source,
+                rec.email,
+                rec.username,
+                rec.phone,
+                rec.password,
+                rec.ip,
+                rec.domain,
+                rec.hash,
+                rec.extra,
+                idx as i64
+            ],
+        )
+        .map_err(|e| format!("insert failed: {e}"))?;
+        imported += 1;
+    }
+    tx.execute(
+        "INSERT INTO sources (name, records, imported_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(name) DO UPDATE SET records = records + ?2",
+        rusqlite::params![source, imported as i64, now],
+    )
+    .map_err(|e| format!("source update failed: {e}"))?;
+    tx.commit().map_err(|e| format!("commit failed: {e}"))?;
+    Ok(json!({
+        "ok": true,
+        "source": source,
+        "lines": lines_total,
+        "imported": imported,
+        "skipped": skipped,
+        "file": file_path,
+    }))
 }
 
 pub fn stats(db_path: &str) -> Result<Value, String> {
@@ -582,17 +668,63 @@ mod tests {
         let text = "aXb:pass1\na%b:pass2\na_b:pass3\n";
         import_text(&db, "wildcards", text).unwrap();
         // % and _ match literally, not as SQL wildcards
-        assert_eq!(search(&db, "a%b", 10, false).unwrap()["total"], 1);
-        assert_eq!(search(&db, "a_b", 10, false).unwrap()["total"], 1);
+        assert_eq!(search(&db, "a%b", 10, false, None).unwrap()["total"], 1);
+        assert_eq!(search(&db, "a_b", 10, false, None).unwrap()["total"], 1);
         assert_eq!(
-            search(&db, "a_b", 10, false).unwrap()["matches"][0]["username"],
+            search(&db, "a_b", 10, false, None).unwrap()["matches"][0]["username"],
             "a_b"
         );
         // a bare wildcard query finds only records containing that literal char
-        assert_eq!(search(&db, "%", 10, false).unwrap()["total"], 1);
-        assert_eq!(search(&db, "_", 10, false).unwrap()["total"], 1);
+        assert_eq!(search(&db, "%", 10, false, None).unwrap()["total"], 1);
+        assert_eq!(search(&db, "_", 10, false, None).unwrap()["total"], 1);
         // plain substring search matches all three
-        assert_eq!(search(&db, "a", 10, false).unwrap()["total"], 3);
+        assert_eq!(search(&db, "a", 10, false, None).unwrap()["total"], 3);
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn import_file_streams_and_dedups() {
+        let db = temp_db("fileimport");
+        let path = std::env::temp_dir().join(format!(
+            "anyway-dump-{}-{}.txt",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::write(
+            &path,
+            "# header\nvictim@example.org:Secret123:192.168.0.1\nvictim@example.org:Secret123\njohn:doe:pass1\n",
+        )
+        .unwrap();
+        let res = import_file(&db, "combo-file", path.to_str().unwrap()).unwrap();
+        assert_eq!(res["lines"], 4);
+        assert_eq!(res["imported"], 2);
+        assert_eq!(res["skipped"], 2);
+        let s = search(&db, "victim@example.org", 10, false, None).unwrap();
+        assert_eq!(s["total"], 1);
+        let _ = std::fs::remove_file(&db);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn search_by_password_and_hash_fields() {
+        let db = temp_db("fields");
+        let text = "a@x.io:pw1234:deadbeefdeadbeefdeadbeefdeadbeef\n";
+        import_text(&db, "fields", text).unwrap();
+        // explicit field override
+        let by_pass = search(&db, "pw1234", 10, true, Some("password")).unwrap();
+        assert_eq!(by_pass["total"], 1);
+        assert_eq!(by_pass["queryField"], "password");
+        // revealed: the password comes back verbatim
+        assert_eq!(by_pass["matches"][0]["password"], "pw1234");
+        // hash auto-detection routes to the hash column
+        let by_hash = search(&db, "DEADBEEFDEADBEEFDEADBEEFDEADBEEF", 10, false, None).unwrap();
+        assert_eq!(by_hash["queryField"], "hash");
+        assert_eq!(by_hash["total"], 1);
+        // unknown field is rejected
+        assert!(search(&db, "x", 10, false, Some("nope")).is_err());
         let _ = std::fs::remove_file(&db);
     }
 
@@ -611,21 +743,21 @@ john:doe:pass1\n\
         assert_eq!(res["imported"], 4); // email dup skipped
         assert_eq!(res["skipped"], 2);
 
-        let s = search(&db, "victim@example.org", 100, false).unwrap();
+        let s = search(&db, "victim@example.org", 100, false, None).unwrap();
         assert_eq!(s["queryField"], "email");
         assert_eq!(s["total"], 1);
         let m = &s["matches"][0];
         assert!(m["password"].as_str().unwrap().contains('\u{2022}'));
 
-        let revealed = search(&db, "victim@example.org", 100, true).unwrap();
+        let revealed = search(&db, "victim@example.org", 100, true, None).unwrap();
         assert_eq!(revealed["matches"][0]["password"], "Secret123");
         assert_eq!(revealed["matches"][0]["ip"], "192.168.0.1");
 
-        let by_user = search(&db, "john", 10, false).unwrap();
+        let by_user = search(&db, "john", 10, false, None).unwrap();
         assert_eq!(by_user["queryField"], "username");
         assert_eq!(by_user["total"], 1);
 
-        let by_phone = search(&db, "+79261234567", 10, false).unwrap();
+        let by_phone = search(&db, "+79261234567", 10, false, None).unwrap();
         assert_eq!(by_phone["queryField"], "phone");
         assert_eq!(by_phone["total"], 1);
 
@@ -650,7 +782,7 @@ john:doe:pass1\n\
         let text = "email,password,ip\na@x.io,p1,1.1.1.1\nb@x.io,p2,2.2.2.2\n";
         let res = import_text(&db, "csv-dump", text).unwrap();
         assert_eq!(res["imported"], 2);
-        let s = search(&db, "a@x.io", 10, true).unwrap();
+        let s = search(&db, "a@x.io", 10, true, None).unwrap();
         assert_eq!(s["matches"][0]["ip"], "1.1.1.1");
         let _ = std::fs::remove_file(&db);
     }
@@ -658,7 +790,7 @@ john:doe:pass1\n\
     #[test]
     fn search_errors() {
         let db = temp_db("err");
-        assert!(search(&db, "", 10, false).is_err());
+        assert!(search(&db, "", 10, false, None).is_err());
         assert!(import_text(&db, "", "a:b").is_err());
         let _ = std::fs::remove_file(&db);
     }

@@ -98,6 +98,8 @@ class RustCore {
     String torMode = 'auto',
     int torSocksPort = 9050,
     String? hibpApiKey,
+    String? vtApiKey,
+    bool embeddedTor = true,
     List<String>? modules,
     bool pivot = false,
     int pivotDepth = 2,
@@ -121,6 +123,8 @@ class RustCore {
             'tor_mode': torMode,
             'tor_socks_port': torSocksPort,
             'hibp_api_key': hibpApiKey ?? '',
+            'vt_api_key': vtApiKey ?? '',
+            'embedded_tor': embeddedTor,
             'enabled_modules': modules ?? const <String>[],
             'pivot': pivot,
             'pivot_depth': pivotDepth,
@@ -289,6 +293,21 @@ class RustCore {
   static Map<String, dynamic> buildTimeline(String snapshotJson) =>
       _must(_json1('anyway_build_timeline', snapshotJson), 'timeline');
 
+  // ---------- Embedded Tor (arti) ----------
+
+  static Map<String, dynamic> artiStart(int port, String dataDir) => _call(() {
+        final f = lib.lookupFunction<Pointer<Utf8> Function(Uint32, Pointer<Utf8>),
+            Pointer<Utf8> Function(int, Pointer<Utf8>)>('anyway_arti_start');
+        final dir = dataDir.toNativeUtf8();
+        try {
+          return jsonDecode(_take(f(port, dir))) as Map<String, dynamic>;
+        } finally {
+          malloc.free(dir);
+        }
+      });
+
+  static Map<String, dynamic> artiStatus() => _json0('anyway_arti_status');
+
   // ---------- Leak dumps ----------
 
   static Map<String, dynamic> leaksImport(String dbPath, String source, String text) => _must(
@@ -296,12 +315,29 @@ class RustCore {
         'leaks import',
       );
 
+  /// Streamed import: the Rust side reads the file itself, so huge dumps
+  /// never travel through a Dart string.
+  static Map<String, dynamic> leaksImportFile(String dbPath, String source, String filePath) =>
+      _must(
+        _json1(
+          'anyway_leaks_import_file',
+          jsonEncode({'db_path': dbPath, 'source': source, 'file_path': filePath}),
+        ),
+        'leaks import file',
+      );
+
   static Map<String, dynamic> leaksSearch(String dbPath, String query,
-          {int limit = 200, bool reveal = false}) =>
+          {int limit = 200, bool reveal = false, String? field}) =>
       _must(
         _json1(
           'anyway_leaks_search',
-          jsonEncode({'db_path': dbPath, 'query': query, 'limit': limit, 'reveal': reveal}),
+          jsonEncode({
+            'db_path': dbPath,
+            'query': query,
+            'limit': limit,
+            'reveal': reveal,
+            if (field != null) 'field': field,
+          }),
         ),
         'leaks search',
       );
@@ -311,6 +347,52 @@ class RustCore {
 
   static Map<String, dynamic> leaksClear(String dbPath) =>
       _must(_json1('anyway_leaks_clear', dbPath), 'leaks clear');
+
+  // ---------- Entity store ----------
+
+  static Map<String, dynamic> estoreIngest(String dbPath, String scanId, String snapshotJson) =>
+      _must(
+        _json1(
+          'anyway_estore_ingest',
+          jsonEncode({'db_path': dbPath, 'scan_id': scanId, 'snapshot': jsonDecode(snapshotJson)}),
+        ),
+        'entity store ingest',
+      );
+
+  static Map<String, dynamic> estoreStats(String dbPath) =>
+      _must(_json1('anyway_estore_stats', dbPath), 'entity store stats');
+
+  static List<EntityRecord> estoreSearch(String dbPath, String query,
+      {String kind = 'all', int limit = 200, int offset = 0}) =>
+      _call(() {
+        final map = _must(
+          _json1(
+            'anyway_estore_search',
+            jsonEncode({
+              'db_path': dbPath,
+              'query': query,
+              'kind': kind,
+              'limit': limit,
+              'offset': offset,
+            }),
+          ),
+          'entity store search',
+        );
+        return ((map['entities'] as List?) ?? const [])
+            .map((e) => EntityRecord.fromJson((e as Map).cast<String, dynamic>()))
+            .toList();
+      });
+
+  static Map<String, dynamic> estoreEntity(String dbPath, int id) =>
+      _must(_json1u32('anyway_estore_entity', dbPath, id), 'entity store detail');
+
+  static Map<String, dynamic> estoreDiff(String dbPath, String scanA, String scanB) => _must(
+        _json1('anyway_estore_diff', jsonEncode({'db_path': dbPath, 'scan_a': scanA, 'scan_b': scanB})),
+        'entity store diff',
+      );
+
+  static Map<String, dynamic> estoreClear(String dbPath) =>
+      _must(_json1('anyway_estore_clear', dbPath), 'entity store clear');
 
   // ---------- Scan scheduler ----------
 

@@ -21,6 +21,7 @@ class _LeaksScreenState extends State<LeaksScreen> {
   Map<String, dynamic>? _stats;
   bool _busy = false;
   bool _reveal = false;
+  String _field = 'auto';
   List<LeakRecord> _results = [];
   String _lastField = '';
   int _lastTotal = 0;
@@ -59,9 +60,10 @@ class _LeaksScreenState extends State<LeaksScreen> {
       final file = await openFile(acceptedTypeGroups: [group]);
       if (file == null || _dbPath == null) return;
       setState(() => _busy = true);
-      final text = await file.readAsString();
+      // the Rust side reads the file directly, so multi-GB dumps never hit
+      // a Dart string
       final source = file.name.replaceAll(RegExp(r'\.[a-z0-9]+$', caseSensitive: false), '');
-      final res = RustCore.leaksImport(_dbPath!, source, text);
+      final res = RustCore.leaksImportFile(_dbPath!, source, file.path);
       await _refreshStats();
       messenger.showSnackBar(SnackBar(
         content: Text(
@@ -80,7 +82,8 @@ class _LeaksScreenState extends State<LeaksScreen> {
     final q = _queryController.text.trim();
     if (q.isEmpty || _dbPath == null) return;
     try {
-      final res = RustCore.leaksSearch(_dbPath!, q, limit: 200, reveal: _reveal);
+      final field = _field == 'auto' ? null : _field;
+      final res = RustCore.leaksSearch(_dbPath!, q, limit: 200, reveal: _reveal, field: field);
       setState(() {
         _results = ((res['matches'] as List?) ?? const [])
             .map((e) => LeakRecord.fromJson((e as Map).cast<String, dynamic>()))
@@ -214,6 +217,29 @@ class _LeaksScreenState extends State<LeaksScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('Field', style: TextStyle(fontSize: 12.5)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: _field,
+                          isDense: true,
+                          underline: const SizedBox.shrink(),
+                          items: const [
+                            DropdownMenuItem(value: 'auto', child: Text('auto-detect')),
+                            DropdownMenuItem(value: 'email', child: Text('email')),
+                            DropdownMenuItem(value: 'username', child: Text('username')),
+                            DropdownMenuItem(value: 'phone', child: Text('phone')),
+                            DropdownMenuItem(value: 'domain', child: Text('domain')),
+                            DropdownMenuItem(value: 'password', child: Text('password')),
+                            DropdownMenuItem(value: 'hash', child: Text('hash')),
+                          ],
+                          onChanged: (v) => setState(() => _field = v ?? 'auto'),
+                        ),
+                      ),
+                    ],
+                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,

@@ -19,7 +19,7 @@ class ResultsScreen extends StatefulWidget {
   State<ResultsScreen> createState() => _ResultsScreenState();
 }
 
-enum _ExportFormat { markdown, html, json }
+enum _ExportFormat { markdown, html, json, pdf }
 
 class _ResultsScreenState extends State<ResultsScreen> {
   String? _moduleFilter;
@@ -94,6 +94,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 onPressed: () => _export(context, _ExportFormat.json),
                 icon: const Icon(Icons.data_object),
                 label: const Text('JSON'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () => _export(context, _ExportFormat.pdf),
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('PDF'),
               ),
               const SizedBox(width: 12),
               FilledButton.tonalIcon(
@@ -200,6 +206,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         _ExportFormat.markdown => await widget.state.exportLastMarkdown(dir),
         _ExportFormat.json => await widget.state.exportLastJson(dir),
         _ExportFormat.html => await widget.state.exportLastHtml(dir),
+        _ExportFormat.pdf => await widget.state.exportLastPdf(dir),
       };
       messenger.showSnackBar(SnackBar(content: Text('Saved: ${file.path}')));
     } catch (e) {

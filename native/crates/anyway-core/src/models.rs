@@ -100,6 +100,8 @@ pub struct ScanOptions {
     pub tor_mode: TorMode,
     pub tor_socks_port: u16,
     pub hibp_api_key: String,
+    pub vt_api_key: String,
+    pub embedded_tor: bool,
     pub enabled_modules: Vec<String>,
     pub pivot: bool,
     pub pivot_depth: u32,
@@ -121,6 +123,8 @@ impl Default for ScanOptions {
             tor_mode: TorMode::Auto,
             tor_socks_port: TOR_DEFAULT_PORT,
             hibp_api_key: String::new(),
+            vt_api_key: String::new(),
+            embedded_tor: true,
             enabled_modules: Vec::new(),
             pivot: false,
             pivot_depth: 2,
@@ -152,16 +156,33 @@ impl ScanOptions {
     /// `On` keeps routing through Tor even when unreachable, so the scan fails
     /// closed instead of leaking traffic.
     pub fn effective_proxy(&self, tor_listening: bool) -> String {
+        self.effective_proxy_with(tor_listening, false)
+    }
+
+    /// Same, but also considers the embedded (arti) Tor client as a fallback
+    /// route when the external daemon is absent.
+    pub fn effective_proxy_with(&self, tor_listening: bool, arti_ready: bool) -> String {
         let explicit = self.proxy.trim();
         if !explicit.is_empty() {
             return explicit.to_string();
         }
+        let arti_url = format!("socks5h://127.0.0.1:{}", crate::arti::ARTI_SOCKS_PORT);
         match self.tor_mode {
             TorMode::Off => String::new(),
-            TorMode::On => self.tor_proxy_url(),
+            TorMode::On => {
+                if tor_listening || !self.embedded_tor {
+                    self.tor_proxy_url()
+                } else if arti_ready {
+                    arti_url
+                } else {
+                    self.tor_proxy_url()
+                }
+            }
             TorMode::Auto => {
                 if tor_listening {
                     self.tor_proxy_url()
+                } else if arti_ready {
+                    arti_url
                 } else {
                     String::new()
                 }

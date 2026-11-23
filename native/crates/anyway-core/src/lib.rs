@@ -1,6 +1,8 @@
+pub mod arti;
 pub mod browser;
 pub mod detect;
 pub mod engine;
+pub mod estore;
 pub mod error;
 pub mod graph;
 pub mod http;
@@ -9,6 +11,7 @@ pub mod leaks;
 pub mod models;
 pub mod modules;
 pub mod pivot;
+pub mod report;
 pub mod resolve;
 pub mod scheduler;
 pub mod tor;

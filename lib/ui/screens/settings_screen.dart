@@ -168,6 +168,40 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Embedded Tor (arti)'),
+                subtitle: const Text(
+                  'Runs a built-in Tor client inside the app when no external daemon is listening. Auto falls back to it; On waits for it and fails closed',
+                ),
+                secondary: const Icon(Icons.shield_moon),
+                value: state.embeddedTor,
+                onChanged: state.setEmbeddedTor,
+              ),
+              Row(
+                children: [
+                  Icon(
+                    (state.artiStatus['status'] == 'ready')
+                        ? Icons.verified_user
+                        : (state.artiStatus['status'] == 'failed' ? Icons.error : Icons.hourglass_top),
+                    size: 18,
+                    color: state.artiStatus['status'] == 'ready'
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Embedded Tor: ${state.artiStatus['status'] ?? 'off'}'
+                      '${state.artiStatus['status'] == 'ready' ? ' (port ${state.artiStatus['port']})' : ''}'
+                      '${(state.artiStatus['detail'] as String?)?.isEmpty == false ? ' — ${state.artiStatus['detail']}' : ''}',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Icon(
@@ -449,6 +483,45 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         _Section(
+          title: 'Passive DNS enrichment',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: TextEditingController(text: state.vtApiKey),
+                onSubmitted: state.setVtApiKey,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(
+                  hintText: 'paste your key and press Enter',
+                  labelText: 'VirusTotal API key',
+                  helperText: 'Used by the passive DNS module for historical IPs and subdomains · free key at virustotal.com',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    state.vtApiKey.isEmpty ? Icons.key_off : Icons.key,
+                    size: 18,
+                    color: state.vtApiKey.isEmpty ? scheme.onSurfaceVariant : scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.vtApiKey.isEmpty
+                          ? 'Wayback Machine history still works without a key'
+                          : 'VirusTotal passive DNS enabled · key stored on this device',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _Section(
           title: 'Native core',
           child: Row(
             children: [
@@ -468,7 +541,7 @@ class SettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Anyway v0.3.0', style: textTheme.bodyMedium),
+              Text('Anyway v0.4.0', style: textTheme.bodyMedium),
               const SizedBox(height: 4),
               Text('Cross-platform OSINT workstation · GPL-3.0', style: TextStyle(color: scheme.onSurfaceVariant)),
               const SizedBox(height: 12),

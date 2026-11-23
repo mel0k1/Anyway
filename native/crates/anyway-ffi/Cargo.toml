@@ -9,6 +9,7 @@ name = "anyway_ffi"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
+base64.workspace = true
 anyway-core = { path = "../anyway-core" }
 serde_json.workspace = true
 tokio.workspace = true

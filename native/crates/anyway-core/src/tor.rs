@@ -30,25 +30,33 @@ impl TorCheck {
             "exitIp": self.exit_ip,
             "proxy": self.proxy,
             "mode": self.mode.wire(),
+            "embedded": crate::arti::status_lite(),
         })
     }
 }
 
-/// Verify the Tor route end to end: SOCKS port open and an exit node reachable.
+/// Verify the Tor route end to end: SOCKS port open (daemon or embedded) and
+/// an exit node reachable.
 pub async fn check(options: &ScanOptions) -> TorCheck {
-    let listening = tor_listening(options);
+    let daemon_listening = tor_listening(options);
+    let arti_ready = options.embedded_tor && crate::arti::ready();
+    let listening = daemon_listening || arti_ready;
     let check = TorCheck {
         listening,
         is_tor: None,
         exit_ip: None,
-        proxy: options.effective_proxy(listening),
+        proxy: options.effective_proxy_with(daemon_listening, arti_ready),
         mode: options.tor_mode,
     };
     if !listening {
         return check;
     }
     let mut probe_opts = options.clone();
-    probe_opts.proxy = options.tor_proxy_url();
+    probe_opts.proxy = if daemon_listening {
+        options.tor_proxy_url()
+    } else {
+        format!("socks5h://127.0.0.1:{}", crate::arti::ARTI_SOCKS_PORT)
+    };
     let Ok(client) = build_client(&probe_opts) else {
         return check;
     };

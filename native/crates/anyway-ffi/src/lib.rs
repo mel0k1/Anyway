@@ -199,6 +199,27 @@ pub unsafe extern "C" fn anyway_tor_check(options_json: *const c_char) -> *mut c
     to_ptr(v)
 }
 
+/// Start the embedded Tor (arti) client. `port` is the local SOCKS5 port and
+/// `data_dir` is a writable directory for Tor state; both are remembered for
+/// the lifetime of the process. Idempotent.
+#[no_mangle]
+pub unsafe extern "C" fn anyway_arti_start(
+    port: u32,
+    data_dir: *const c_char,
+) -> *mut c_char {
+    let dir = read_str(data_dir);
+    let _guard = runtime().enter();
+    to_ptr(anyway_core::arti::start(
+        port.min(65535) as u16,
+        std::path::PathBuf::from(dir),
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_arti_status() -> *mut c_char {
+    to_ptr(anyway_core::arti::status())
+}
+
 // ---------- Imaging ----------
 
 #[no_mangle]
@@ -350,7 +371,20 @@ pub unsafe extern "C" fn anyway_leaks_search(payload: *const c_char) -> *mut c_c
     let query = v["query"].as_str().unwrap_or("").to_string();
     let limit = v["limit"].as_u64().unwrap_or(200) as usize;
     let reveal = v["reveal"].as_bool().unwrap_or(false);
-    leaks_task(move || anyway_core::leaks::search(&db_path, &query, limit, reveal))
+    let field = v["field"].as_str().map(String::from);
+    leaks_task(move || anyway_core::leaks::search(&db_path, &query, limit, reveal, field.as_deref()))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_leaks_import_file(payload: *const c_char) -> *mut c_char {
+    let body = read_str(payload);
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return err_ptr("bad payload json");
+    };
+    let db_path = v["db_path"].as_str().unwrap_or("").to_string();
+    let source = v["source"].as_str().unwrap_or("").to_string();
+    let file_path = v["file_path"].as_str().unwrap_or("").to_string();
+    leaks_task(move || anyway_core::leaks::import_file(&db_path, &source, &file_path))
 }
 
 #[no_mangle]
@@ -363,6 +397,64 @@ pub unsafe extern "C" fn anyway_leaks_stats(db_path: *const c_char) -> *mut c_ch
 pub unsafe extern "C" fn anyway_leaks_clear(db_path: *const c_char) -> *mut c_char {
     let path = read_str(db_path);
     leaks_task(move || anyway_core::leaks::clear(&path))
+}
+
+// ---------- Entity store ----------
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_estore_ingest(payload: *const c_char) -> *mut c_char {
+    let body = read_str(payload);
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return err_ptr("bad payload json");
+    };
+    let db_path = v["db_path"].as_str().unwrap_or("").to_string();
+    let scan_id = v["scan_id"].as_str().unwrap_or("").to_string();
+    let snapshot = v["snapshot"].clone();
+    leaks_task(move || anyway_core::estore::ingest(&db_path, &snapshot, &scan_id))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_estore_stats(db_path: *const c_char) -> *mut c_char {
+    let path = read_str(db_path);
+    leaks_task(move || anyway_core::estore::stats(&path))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_estore_search(payload: *const c_char) -> *mut c_char {
+    let body = read_str(payload);
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return err_ptr("bad payload json");
+    };
+    let db_path = v["db_path"].as_str().unwrap_or("").to_string();
+    let query = v["query"].as_str().unwrap_or("").to_string();
+    let kind = v["kind"].as_str().unwrap_or("all").to_string();
+    let limit = v["limit"].as_u64().unwrap_or(200) as usize;
+    let offset = v["offset"].as_u64().unwrap_or(0) as usize;
+    leaks_task(move || anyway_core::estore::search(&db_path, &query, &kind, limit, offset))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_estore_entity(db_path: *const c_char, id: u32) -> *mut c_char {
+    let path = read_str(db_path);
+    leaks_task(move || anyway_core::estore::entity(&path, id as i64))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_estore_diff(payload: *const c_char) -> *mut c_char {
+    let body = read_str(payload);
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return err_ptr("bad payload json");
+    };
+    let db_path = v["db_path"].as_str().unwrap_or("").to_string();
+    let a = v["scan_a"].as_str().unwrap_or("").to_string();
+    let b = v["scan_b"].as_str().unwrap_or("").to_string();
+    leaks_task(move || anyway_core::estore::diff(&db_path, &a, &b))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_estore_clear(db_path: *const c_char) -> *mut c_char {
+    let path = read_str(db_path);
+    leaks_task(move || anyway_core::estore::clear(&path))
 }
 
 // ---------- Scan scheduler ----------

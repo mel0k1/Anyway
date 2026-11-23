@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/anyway-core", "crates/anyway-ffi"]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "GPL-3.0"
 
@@ -12,6 +12,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "json", "socks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+arti-client = "0.48"
+printpdf = "0.8"
+base64 = "0.22"
+tor-rtcompat = "0.48"
 futures = "0.3"
 thiserror = "2"
 regex = "1"

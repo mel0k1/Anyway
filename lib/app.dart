@@ -5,6 +5,7 @@ import 'ui/screens/cases_screen.dart';
 import 'ui/screens/dashboard_screen.dart';
 import 'ui/screens/graph_screen.dart';
 import 'ui/screens/images_screen.dart';
+import 'ui/screens/entities_screen.dart';
 import 'ui/screens/leaks_screen.dart';
 import 'ui/screens/modules_screen.dart';
 import 'ui/screens/planner_screen.dart';
@@ -55,6 +56,7 @@ class _ShellState extends State<Shell> {
     (Icons.hub_outlined, Icons.hub, 'Graph'),
     (Icons.image_outlined, Icons.image, 'Images'),
     (Icons.storage_outlined, Icons.storage, 'Leaks'),
+    (Icons.account_tree_outlined, Icons.account_tree, 'Entities'),
     (Icons.schedule_outlined, Icons.schedule, 'Planner'),
     (Icons.folder_outlined, Icons.folder, 'Cases'),
     (Icons.grid_view_outlined, Icons.grid_view, 'Modules'),
@@ -77,6 +79,7 @@ class _ShellState extends State<Shell> {
       GraphScreen(state: state),
       ImagesScreen(state: state),
       const LeaksScreen(),
+      EntitiesScreen(state: state),
       PlannerScreen(state: state),
       CasesScreen(state: state, onOpenCase: () => setState(() => _index = 2)),
       ModulesScreen(state: state),

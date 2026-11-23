@@ -7,6 +7,7 @@ pub mod enrich;
 pub mod exif;
 pub mod ipaddr;
 pub mod mastodon;
+pub mod pdns;
 pub mod phone;
 pub mod sites;
 pub mod social_graph;
@@ -55,5 +56,6 @@ pub fn registry() -> Vec<Arc<dyn Module>> {
         Arc::new(domain::DomainModule),
         Arc::new(phone::PhoneModule),
         Arc::new(exif::ExifModule),
+        Arc::new(pdns::PdnsModule),
     ]
 }

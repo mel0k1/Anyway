@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'case_store.dart';
 import 'models.dart';
+import 'notifications.dart';
 import 'report_exporter.dart';
 import 'rust_core.dart';
 
@@ -28,6 +29,8 @@ class AppState extends ChangeNotifier {
   String torMode = 'auto';
   int torSocksPort = 9050;
   String hibpApiKey = '';
+  String vtApiKey = '';
+  bool embeddedTor = true;
   Set<String> disabledModules = {};
   bool pivotEnabled = true;
   int pivotDepth = 2;
@@ -41,7 +44,16 @@ class AppState extends ChangeNotifier {
   Set<String> selectedCountries = {};
   String? detectedBrowser;
   TorStatus? torStatus;
+  Map<String, dynamic> artiStatus = {};
   Map<String, dynamic>? ocrInfo;
+
+  /// Persistent entity store (SQLite) fed by every finished scan.
+  String estorePath = '';
+
+  /// Planner events: scheduled runs that surfaced new findings.
+  List<Map<String, dynamic>> plannerJournal = [];
+  final Map<String, int> _lastNewFindings = {};
+  Timer? _artiTimer;
 
   ScanSnapshot? activeScan;
   ScanSnapshot? lastSnapshot;
@@ -68,6 +80,9 @@ class AppState extends ChangeNotifier {
     torMode = prefs.getString('torMode') ?? 'auto';
     torSocksPort = prefs.getInt('torSocksPort') ?? 9050;
     hibpApiKey = prefs.getString('hibpApiKey') ?? '';
+    vtApiKey = prefs.getString('vtApiKey') ?? '';
+    embeddedTor = prefs.getBool('embeddedTor') ?? true;
+    plannerJournal = _loadJournal(prefs);
     disabledModules = (prefs.getStringList('disabledModules') ?? []).toSet();
     pivotEnabled = prefs.getBool('pivotEnabled') ?? true;
     pivotDepth = prefs.getInt('pivotDepth') ?? 2;
@@ -92,13 +107,43 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (nativeReady) {
       await _initScheduler();
+      await _initEstore();
       unawaited(checkTor());
       _scheduleTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshSchedule());
+      _artiTimer = Timer.periodic(const Duration(seconds: 10), (_) => _refreshArti());
+      if (embeddedTor) unawaited(startArti());
       try {
         ocrInfo = RustCore.ocrAvailable();
       } catch (_) {}
       notifyListeners();
     }
+  }
+
+  Future<void> _initEstore() async {
+    try {
+      final base = await getApplicationSupportDirectory();
+      estorePath = '${base.path}${Platform.pathSeparator}entities.sqlite';
+    } catch (_) {}
+  }
+
+  Future<void> startArti() async {
+    if (!nativeReady || !embeddedTor) return;
+    try {
+      final base = await getApplicationSupportDirectory();
+      artiStatus = RustCore.artiStart(9051, '${base.path}${Platform.pathSeparator}arti-data');
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void _refreshArti() {
+    if (!nativeReady) return;
+    try {
+      final next = RustCore.artiStatus();
+      if (next['status'] != artiStatus['status'] || next['connections'] != artiStatus['connections']) {
+        artiStatus = next;
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   // ---------- Tor ----------
@@ -107,6 +152,7 @@ class AppState extends ChangeNotifier {
         'tor_mode': torMode,
         'tor_socks_port': torSocksPort,
         'proxy': proxy,
+        'embedded_tor': embeddedTor,
       });
 
   Future<void> checkTor() async {
@@ -133,6 +179,24 @@ class AppState extends ChangeNotifier {
     await prefs.setInt('torSocksPort', v);
     notifyListeners();
     await checkTor();
+  }
+
+  Future<void> setEmbeddedTor(bool v) async {
+    embeddedTor = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('embeddedTor', v);
+    notifyListeners();
+    if (v) {
+      await startArti();
+    }
+    await checkTor();
+  }
+
+  Future<void> setVtApiKey(String v) async {
+    vtApiKey = v.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('vtApiKey', vtApiKey);
+    notifyListeners();
   }
 
   // ---------- Scan scheduler ----------
@@ -165,8 +229,58 @@ class AppState extends ChangeNotifier {
       if (sig == _lastScheduleSig) return;
       _lastScheduleSig = sig;
       scheduleEntries = next;
+      for (final e in next) {
+        final added = e.addedFindings.length;
+        final previous = _lastNewFindings[e.id];
+        if (added > 0 && previous != added) {
+          _addJournalRecord(e);
+          await notifyOs(
+            'Planner: new findings',
+            '${e.query}: $added new finding${added == 1 ? '' : 's'}',
+          );
+        }
+        _lastNewFindings[e.id] = added;
+      }
       notifyListeners();
     } catch (_) {}
+  }
+
+  void _addJournalRecord(ScheduleEntryInfo e) {
+    plannerJournal = [
+      {
+        'ts': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'id': e.id,
+        'query': e.query,
+        'added': e.addedFindings.take(10).toList(),
+        'total': e.addedFindings.length,
+      },
+      ...plannerJournal,
+    ].take(50).toList();
+    () async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('plannerJournal', jsonEncode(plannerJournal));
+      } catch (_) {}
+    }();
+  }
+
+  List<Map<String, dynamic>> _loadJournal(SharedPreferences prefs) {
+    try {
+      final raw = prefs.getString('plannerJournal');
+      if (raw == null || raw.isEmpty) return [];
+      return ((jsonDecode(raw) as List) ?? [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> clearJournal() async {
+    plannerJournal = [];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('plannerJournal', '[]');
+    notifyListeners();
   }
 
   Future<void> _persistSchedule() async {
@@ -358,6 +472,8 @@ class AppState extends ChangeNotifier {
       torMode: torMode,
       torSocksPort: torSocksPort,
       hibpApiKey: hibpApiKey,
+      vtApiKey: vtApiKey,
+      embeddedTor: embeddedTor,
       modules: enabled,
       pivot: pivotEnabled,
       pivotDepth: pivotDepth,
@@ -397,8 +513,16 @@ class AppState extends ChangeNotifier {
         await cases.save(snap);
         caseList = await cases.list();
       } catch (_) {}
+      unawaited(_ingestEntities(snap));
     }
     notifyListeners();
+  }
+
+  Future<void> _ingestEntities(ScanSnapshot snap) async {
+    if (estorePath.isEmpty || snap.status != 'done') return;
+    try {
+      RustCore.estoreIngest(estorePath, snap.scanId, jsonEncode(snap.toJson()));
+    } catch (_) {}
   }
 
   Future<void> cancelScan() async {
@@ -445,10 +569,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Correlation clusters + timeline from the native core; empty in mock mode.
+  CorrelationSection? _correlationSection(ScanSnapshot snap) {
+    if (!nativeReady) return null;
+    try {
+      final json = jsonEncode(snap.toJson());
+      final report = RustCore.resolveEntities(json, 45);
+      final timeline = RustCore.buildTimeline(json);
+      return CorrelationSection(
+        clusters: ((report['clusters'] as List?) ?? const [])
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .where((c) => ((c['size'] as num?)?.toInt() ?? 0) > 1)
+            .toList(),
+        timeline: ((timeline['events'] as List?) ?? const [])
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .toList(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<File> exportLastMarkdown([Directory? dir]) async {
     final snap = lastSnapshot ?? activeScan;
     if (snap == null) throw StateError('no scan to export');
-    return ReportExporter.exportMarkdown(snap, dir);
+    return ReportExporter.exportMarkdown(snap, dir, _correlationSection(snap) ?? const CorrelationSection());
   }
 
   Future<File> exportLastJson([Directory? dir]) async {
@@ -460,13 +605,24 @@ class AppState extends ChangeNotifier {
   Future<File> exportLastHtml([Directory? dir]) async {
     final snap = lastSnapshot ?? activeScan;
     if (snap == null) throw StateError('no scan to export');
-    return ReportExporter.exportHtml(snap, dir);
+    return ReportExporter.exportHtml(snap, dir, _correlationSection(snap) ?? const CorrelationSection());
+  }
+
+  Future<File> exportLastPdf([Directory? dir]) async {
+    final snap = lastSnapshot ?? activeScan;
+    if (snap == null) throw StateError('no scan to export');
+    if (!nativeReady) throw StateError('PDF export needs the native core');
+    final res = RustCore.reportPdf(jsonEncode(snap.toJson()));
+    final bytes = base64Decode((res['pdf_b64'] as String?) ?? '');
+    if (bytes.isEmpty) throw StateError('empty PDF from native core');
+    return ReportExporter.exportPdf(snap, bytes, dir);
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
     _scheduleTimer?.cancel();
+    _artiTimer?.cancel();
     super.dispose();
   }
 }

@@ -470,6 +470,7 @@ class ScheduleEntryInfo {
   final int dueIn;
   final String? lastStatus;
   final int? newFindings;
+  final List<String> addedFindings;
   final int findingsTotal;
 
   const ScheduleEntryInfo({
@@ -485,6 +486,7 @@ class ScheduleEntryInfo {
     this.lastRun,
     this.lastStatus,
     this.newFindings,
+    this.addedFindings = const <String>[],
   });
 
   factory ScheduleEntryInfo.fromJson(Map<String, dynamic> j) => ScheduleEntryInfo(
@@ -499,6 +501,9 @@ class ScheduleEntryInfo {
         dueIn: (j['due_in'] as num?)?.toInt() ?? 0,
         lastStatus: j['last_status'] as String?,
         newFindings: (j['new_findings'] as num?)?.toInt(),
+        addedFindings: ((j['added_findings'] as List?) ?? const [])
+            .map((e) => e as String)
+            .toList(),
         findingsTotal: (j['findings_total'] as num?)?.toInt() ?? 0,
       );
 
