@@ -127,7 +127,8 @@ impl Module for PdnsModule {
         // ---- VirusTotal passive DNS (needs an API key) ----
         let key = ctx.options.vt_api_key.trim().to_string();
         if key.is_empty() {
-            ctx.note("virustotal: no API key, passive DNS skipped").await;
+            ctx.note("virustotal: no API key, passive DNS skipped")
+                .await;
         } else if !ctx.cancelled() {
             let vt_client = ctx.client.clone();
             let vt_url = format!("https://www.virustotal.com/api/v3/domains/{domain}/passive_dns");
@@ -139,10 +140,7 @@ impl Module for PdnsModule {
             match builder.send().await {
                 Ok(resp) if resp.status().is_success() => {
                     let v: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
-                    let records = v["data"]
-                        .as_array()
-                        .cloned()
-                        .unwrap_or_default();
+                    let records = v["data"].as_array().cloned().unwrap_or_default();
                     let pairs = parse_vt(&records);
                     let mut ips: Vec<String> = Vec::new();
                     for (ip, host) in pairs {

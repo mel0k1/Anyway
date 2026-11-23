@@ -119,7 +119,11 @@ pub fn stats(db_path: &str) -> Result<Value, String> {
         .query_row("SELECT COUNT(*) FROM entities", [], |r| r.get(0))
         .map_err(|e| format!("query failed: {e}"))?;
     let observations: i64 = conn
-        .query_row("SELECT COUNT(DISTINCT scan_id) FROM observations", [], |r| r.get(0))
+        .query_row(
+            "SELECT COUNT(DISTINCT scan_id) FROM observations",
+            [],
+            |r| r.get(0),
+        )
         .map_err(|e| format!("query failed: {e}"))?;
     let mut kinds = Vec::new();
     {
@@ -191,7 +195,9 @@ fn query_rows(
     sql: &str,
     params: impl rusqlite::Params,
 ) -> Result<Vec<Value>, String> {
-    let mut stmt = conn.prepare(sql).map_err(|e| format!("query failed: {e}"))?;
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|e| format!("query failed: {e}"))?;
     let rows = stmt
         .query_map(params, |r| {
             Ok(json!({
@@ -335,9 +341,15 @@ mod tests {
         assert_eq!(only_breach["entities"][0]["kind"], "breach");
         let by_query = search(&db, "github", "all", 100, 0).unwrap();
         assert_eq!(by_query["total_returned"], 1);
-        assert_eq!(by_query["entities"][0]["value"], "https://github.com/mel0k1");
+        assert_eq!(
+            by_query["entities"][0]["value"],
+            "https://github.com/mel0k1"
+        );
         // LIKE wildcards stay literal
-        assert_eq!(search(&db, "%", "all", 100, 0).unwrap()["total_returned"], 0);
+        assert_eq!(
+            search(&db, "%", "all", 100, 0).unwrap()["total_returned"],
+            0
+        );
         let _ = std::fs::remove_file(&db);
     }
 

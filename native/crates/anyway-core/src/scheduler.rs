@@ -212,8 +212,8 @@ async fn run_entry(entry: Arc<AsyncMutex<SchedulerEntry>>) {
         if e.last_status.as_deref() == Some("done") {
             let current = SchedulerEntry::labels_from_snapshot(snap);
             let added = diff_labels(&e.last_labels, &current);
-                e.new_findings = Some(added.len() as u64);
-                e.added_labels = added;
+            e.new_findings = Some(added.len() as u64);
+            e.added_labels = added;
             e.last_labels = current;
         } else {
             // failed or cancelled runs keep the previous baseline

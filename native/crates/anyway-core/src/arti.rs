@@ -1,10 +1,10 @@
 use arti_client::{TorClient, TorClientConfig};
-use tor_rtcompat::PreferredRuntime;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, copy_bidirectional};
+use tokio::io::{copy_bidirectional, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tor_rtcompat::PreferredRuntime;
 
 /// Embedded Tor client (arti) with a local SOCKS5 endpoint. Used when no
 /// external Tor daemon is listening: `Auto` mode prefers the daemon, falls
@@ -144,17 +144,22 @@ async fn run(port: u16, data_dir: PathBuf) {
         let mut builder = TorClientConfig::builder();
         builder
             .storage()
-            .state_dir(arti_client::config::CfgPath::new_literal(data_dir.join("state")))
-            .cache_dir(arti_client::config::CfgPath::new_literal(data_dir.join("cache")));
-        let config = builder
-            .build()
-            .map_err(|e| format!("arti config: {e}"))?;
+            .state_dir(arti_client::config::CfgPath::new_literal(
+                data_dir.join("state"),
+            ))
+            .cache_dir(arti_client::config::CfgPath::new_literal(
+                data_dir.join("cache"),
+            ));
+        let config = builder.build().map_err(|e| format!("arti config: {e}"))?;
         let client = TorClient::builder()
             .config(config)
             .create_unbootstrapped()
             .map_err(|e| format!("arti client: {e}"))?;
         set_status("bootstrapping");
-        client.bootstrap().await.map_err(|e| format!("arti bootstrap: {e}"))?;
+        client
+            .bootstrap()
+            .await
+            .map_err(|e| format!("arti bootstrap: {e}"))?;
         let listener = TcpListener::bind(("127.0.0.1", port))
             .await
             .map_err(|e| format!("arti socks bind: {e}"))?;
@@ -240,7 +245,9 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
     sock.read_exact(&mut req).await.map_err(|_| ())?;
     if req[0] != 0x05 || req[1] != 0x01 {
         // only CONNECT is supported
-        let _ = sock.write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await;
+        let _ = sock
+            .write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            .await;
         return Err(());
     }
     let atyp = req[3];
@@ -249,7 +256,9 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
         0x03 => 1 + 2, // read length byte first
         0x04 => 16 + 2,
         _ => {
-            let _ = sock.write_all(&[0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await;
+            let _ = sock
+                .write_all(&[0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                .await;
             return Err(());
         }
     };
@@ -264,7 +273,9 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
     match parse_socks5_request(&full) {
         Ok((host, port)) => Ok((host, port)),
         Err(code) => {
-            let _ = sock.write_all(&[0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await;
+            let _ = sock
+                .write_all(&[0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                .await;
             Err(())
         }
     }
@@ -338,7 +349,11 @@ mod tests {
         assert_eq!(host, "1.2.3.4");
         assert_eq!(port, 9050);
 
-        let mut v6 = req(0x04, &[0x2a, 6, 0x98, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 80);
+        let mut v6 = req(
+            0x04,
+            &[0x2a, 6, 0x98, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            80,
+        );
         v6.truncate(v6.len());
         let (host, port) = parse_socks5_request(&v6).unwrap();
         assert!(host.starts_with("2a06:"));
@@ -356,7 +371,10 @@ mod tests {
         bind[1] = 0x02;
         assert_eq!(parse_socks5_request(&bind), Err(0x07));
         // truncated address
-        assert_eq!(parse_socks5_request(&[0x05, 0x01, 0x00, 0x01, 1, 2, 3]), Err(0x01));
+        assert_eq!(
+            parse_socks5_request(&[0x05, 0x01, 0x00, 0x01, 1, 2, 3]),
+            Err(0x01)
+        );
         // zero-length domain
         assert_eq!(parse_socks5_request(&req(0x03, b"", 80)), Err(0x01));
         // unknown address type
@@ -379,7 +397,10 @@ mod tests {
         let second = start(ARTI_SOCKS_PORT, dir);
         // both calls report the same lifecycle state, and neither resets it
         assert_eq!(first["status"], second["status"]);
-        assert!(first["status"] == "starting" || first["status"] == "bootstrapping" || first["status"] == "ready");
+        assert!(
+            first["status"] == "starting"
+                || first["status"] == "bootstrapping"
+                || first["status"] == "ready"
+        );
     }
 }
-

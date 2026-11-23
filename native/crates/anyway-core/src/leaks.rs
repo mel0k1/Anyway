@@ -375,7 +375,13 @@ pub fn import_text(db_path: &str, source: &str, text: &str) -> Result<Value, Str
     }))
 }
 
-pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool, field_override: Option<&str>) -> Result<Value, String> {
+pub fn search(
+    db_path: &str,
+    query: &str,
+    limit: usize,
+    reveal: bool,
+    field_override: Option<&str>,
+) -> Result<Value, String> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
         return Err("empty query".into());
@@ -390,7 +396,11 @@ pub fn search(db_path: &str, query: &str, limit: usize, reveal: bool, field_over
     const FIELDS: [&str; 6] = ["email", "username", "phone", "domain", "password", "hash"];
     let field = match field_override {
         Some(f) if FIELDS.contains(&f) => f,
-        Some(_) => return Err("unknown field; expected email, username, phone, domain, password or hash".into()),
+        Some(_) => {
+            return Err(
+                "unknown field; expected email, username, phone, domain, password or hash".into(),
+            )
+        }
         None => {
             if is_email(&q) {
                 "email"
@@ -506,7 +516,10 @@ pub fn import_file(db_path: &str, source: &str, file_path: &str) -> Result<Value
             skipped += 1;
             continue;
         };
-        let key = format!("{}|{}|{}|{}", rec.email, rec.username, rec.phone, rec.password);
+        let key = format!(
+            "{}|{}|{}|{}",
+            rec.email, rec.username, rec.phone, rec.password
+        );
         if !seen.insert(key) {
             skipped += 1;
             continue;
