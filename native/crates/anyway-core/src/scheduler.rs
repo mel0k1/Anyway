@@ -116,7 +116,6 @@ fn unix_now() -> u64 {
         .unwrap_or(0)
 }
 
-/// Labels present now but absent in the previous run.
 pub fn diff_labels(previous: &[String], current: &[String]) -> Vec<String> {
     current
         .iter()
@@ -179,7 +178,6 @@ async fn tick() {
     }
 }
 
-/// Launch one scheduled scan for `entry` in the background and watch it.
 pub fn spawn_run(entry: Arc<AsyncMutex<SchedulerEntry>>) {
     tokio::spawn(run_entry(entry));
 }
@@ -216,7 +214,6 @@ async fn run_entry(entry: Arc<AsyncMutex<SchedulerEntry>>) {
             e.added_labels = added;
             e.last_labels = current;
         } else {
-            // failed or cancelled runs keep the previous baseline
             e.new_findings = None;
         }
     } else {
@@ -226,7 +223,6 @@ async fn run_entry(entry: Arc<AsyncMutex<SchedulerEntry>>) {
 }
 
 async fn watch(handle: ScanHandle) -> Option<Value> {
-    // up to 24h of polling at 500ms
     for _ in 0..172_800u32 {
         tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
         {
@@ -267,25 +263,20 @@ pub fn upsert(v: &Value) -> Result<Value, String> {
     let now = unix_now();
     let entry = SchedulerEntry::from_json(v, now)?;
     let id = entry.id.clone();
-    // Preserve run history when the caller re-saves an existing schedule.
+
     let existing = scheduler()
         .entries
         .lock()
         .expect("scheduler entries")
         .get(&id)
         .cloned();
-    if let Some(prev) = existing {
-        let prev = prev.blocking_lock();
-        let mut e = entry;
-        e.runs = prev.runs;
-        e.last_run = prev.last_run;
-        e.next_run = prev.next_run.max(now + e.interval_secs);
-        e.last_status = prev.last_status.clone();
-        e.new_findings = prev.new_findings;
-        e.added_labels = prev.added_labels.clone();
-        e.last_labels = prev.last_labels.clone();
-        e.last_snapshot = prev.last_snapshot.clone();
-        insert(e);
+    if let Some(arc) = existing {
+        let mut e = futures::executor::block_on(arc.lock());
+        e.query = entry.query;
+        e.options = entry.options;
+        e.interval_secs = entry.interval_secs;
+        e.enabled = entry.enabled;
+        e.next_run = e.next_run.max(now + e.interval_secs);
     } else {
         insert(entry);
         ensure_ticker();
@@ -334,7 +325,7 @@ pub fn snapshot(id: &str) -> Option<Value> {
         .expect("scheduler entries")
         .get(id)
         .cloned()?;
-    let e = arc.blocking_lock();
+    let e = futures::executor::block_on(arc.lock());
     e.last_snapshot.clone()
 }
 
@@ -350,7 +341,7 @@ mod tests {
     fn parses_entry_and_defaults() {
         let e = SchedulerEntry::from_json(&entry_json("mel0k1", 0), 1000).unwrap();
         assert_eq!(e.query, "mel0k1");
-        assert_eq!(e.interval_secs, MIN_INTERVAL_SECS); // clamped
+        assert_eq!(e.interval_secs, MIN_INTERVAL_SECS);
         assert_eq!(e.next_run, 1000 + MIN_INTERVAL_SECS);
         assert!(e.enabled);
         assert_eq!(e.options.tor_mode.wire(), "auto");
@@ -397,10 +388,56 @@ mod tests {
         assert_eq!(v["runs"], 0);
     }
 
+    #[test]
+    fn upsert_edits_existing_entry_in_place() {
+        let id = "sched-upsert-test";
+        let future = unix_now() + 100_000;
+        let e = SchedulerEntry {
+            id: id.into(),
+            query: "mel0k1".into(),
+            options: ScanOptions::default(),
+            interval_secs: 600,
+            enabled: true,
+            runs: 3,
+            last_run: Some(42),
+            next_run: future,
+            running: true,
+            last_status: Some("done".into()),
+            new_findings: Some(2),
+            added_labels: vec!["breach|X".into()],
+            last_labels: vec!["breach|X".into()],
+            last_snapshot: None,
+        };
+        let arc = Arc::new(AsyncMutex::new(e));
+        scheduler()
+            .entries
+            .lock()
+            .expect("scheduler entries")
+            .insert(id.into(), arc.clone());
+
+        let v = json!({"id": id, "query": "mel0k1+", "interval_secs": 1200, "enabled": false});
+        upsert(&v).unwrap();
+
+        let guard = futures::executor::block_on(arc.lock());
+        assert_eq!(guard.query, "mel0k1+");
+        assert_eq!(guard.interval_secs, 1200);
+        assert!(!guard.enabled);
+        assert_eq!(guard.next_run, future);
+        assert!(guard.running);
+        assert_eq!(guard.runs, 3);
+        assert_eq!(guard.last_status.as_deref(), Some("done"));
+        assert_eq!(guard.last_labels, vec!["breach|X".to_string()]);
+        scheduler()
+            .entries
+            .lock()
+            .expect("scheduler entries")
+            .remove(id);
+    }
+
     #[tokio::test]
     async fn run_entry_records_failed_scan() {
         let opts = ScanOptions {
-            proxy: "bad://x".into(), // client build fails -> scan failed
+            proxy: "bad://x".into(),
             ..Default::default()
         };
         let e = SchedulerEntry {
@@ -426,7 +463,7 @@ mod tests {
         assert!(e.last_run.is_some());
         assert!(e.next_run > 0);
         assert!(!e.running);
-        // failed scans keep the previous label baseline and report no new findings
+
         assert_eq!(e.last_labels, vec!["old|label".to_string()]);
         assert_eq!(e.new_findings, None);
         assert!(e.added_labels.is_empty());

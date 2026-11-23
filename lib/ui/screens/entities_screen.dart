@@ -5,8 +5,6 @@ import '../../core/app_state.dart';
 import '../../core/models.dart';
 import '../../core/rust_core.dart';
 
-/// Cross-scan entity index: every finished scan feeds findings here, so
-/// identities can be tracked over time and compared between scans.
 class EntitiesScreen extends StatefulWidget {
   final AppState state;
 

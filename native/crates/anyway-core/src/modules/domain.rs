@@ -8,24 +8,22 @@ use std::time::Duration;
 
 pub struct DomainModule;
 
-/// Official Cloudflare announced ranges. An A/AAAA record falling into one of
-/// these means the origin is hidden behind the CDN.
 const CF_V4: &[(u32, u32)] = &[
-    (0xADF53000, 20), // 173.245.48.0/20
-    (0x6715F400, 22), // 103.21.244.0/22
-    (0x6716C800, 22), // 103.22.200.0/22
-    (0x671F0400, 22), // 103.31.4.0/22
-    (0x8D654000, 18), // 141.101.64.0/18
-    (0x6CA2C000, 18), // 108.162.192.0/18
-    (0xBE5DF000, 20), // 190.93.240.0/20
-    (0xBC726000, 20), // 188.114.96.0/20
-    (0xC5EAF000, 22), // 197.234.240.0/22
-    (0xC6298000, 17), // 198.41.128.0/17
-    (0xA29E0000, 15), // 162.158.0.0/15
-    (0x68100000, 13), // 104.16.0.0/13
-    (0x68180000, 14), // 104.24.0.0/14
-    (0xAC400000, 13), // 172.64.0.0/13
-    (0x83004800, 22), // 131.0.72.0/22
+    (0xADF53000, 20),
+    (0x6715F400, 22),
+    (0x6716C800, 22),
+    (0x671F0400, 22),
+    (0x8D654000, 18),
+    (0x6CA2C000, 18),
+    (0xBE5DF000, 20),
+    (0xBC726000, 20),
+    (0xC5EAF000, 22),
+    (0xC6298000, 17),
+    (0xA29E0000, 15),
+    (0x68100000, 13),
+    (0x68180000, 14),
+    (0xAC400000, 13),
+    (0x83004800, 22),
 ];
 
 pub fn is_cloudflare_ip(ip: &IpAddr) -> bool {
@@ -173,7 +171,6 @@ impl Module for DomainModule {
         }
         ctx.progress(2, 5).await;
 
-        // Infrastructure: CDN detection + reverse DNS on the resolved A records.
         let a_records: Vec<IpAddr> = records
             .get("A")
             .and_then(|v| v.as_array())
@@ -302,7 +299,7 @@ impl Module for DomainModule {
                             }));
                         }
                     }
-                    // oldest first: certificate history of the domain
+
                     certs.sort_by(|a, b| {
                         a["notBefore"]
                             .as_str()

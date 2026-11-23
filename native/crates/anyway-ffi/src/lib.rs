@@ -151,13 +151,10 @@ pub unsafe extern "C" fn anyway_scan_cancel(scan_id: *const c_char) -> *mut c_ch
     }
 }
 
-/// Drop a finished scan's handle so its snapshot memory can be freed. A
-/// running scan must not be released: it would become unreachable while
-/// still working.
 #[no_mangle]
 pub unsafe extern "C" fn anyway_scan_release(scan_id: *const c_char) -> *mut c_char {
     let id = read_str(scan_id);
-    // clone the handle and drop the manager guard before any second lock
+
     let handle = manager().lock().expect("manager").get(&id).cloned();
     let Some(h) = handle else {
         return to_ptr(json!({"ok": false}));
@@ -187,8 +184,6 @@ pub unsafe extern "C" fn anyway_scan_pivot(
     }
 }
 
-// ---------- Tor ----------
-
 #[no_mangle]
 pub unsafe extern "C" fn anyway_tor_check(options_json: *const c_char) -> *mut c_char {
     let body = read_str(options_json);
@@ -199,9 +194,6 @@ pub unsafe extern "C" fn anyway_tor_check(options_json: *const c_char) -> *mut c
     to_ptr(v)
 }
 
-/// Start the embedded Tor (arti) client. `port` is the local SOCKS5 port and
-/// `data_dir` is a writable directory for Tor state; both are remembered for
-/// the lifetime of the process. Idempotent.
 #[no_mangle]
 pub unsafe extern "C" fn anyway_arti_start(port: u32, data_dir: *const c_char) -> *mut c_char {
     let dir = read_str(data_dir);
@@ -238,8 +230,6 @@ fn engine_b64(bytes: &[u8]) -> String {
     use base64::Engine as _;
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
-
-// ---------- Imaging ----------
 
 #[no_mangle]
 pub unsafe extern "C" fn anyway_image_intel(payload: *const c_char) -> *mut c_char {
@@ -330,8 +320,6 @@ pub unsafe extern "C" fn anyway_image_index_search(
     to_ptr(out)
 }
 
-// ---------- Entity resolution ----------
-
 #[no_mangle]
 pub unsafe extern "C" fn anyway_resolve_entities(
     snapshot: *const c_char,
@@ -351,8 +339,6 @@ pub unsafe extern "C" fn anyway_build_timeline(snapshot: *const c_char) -> *mut 
     };
     to_ptr(anyway_core::resolve::build_timeline(&snap))
 }
-
-// ---------- Leak dumps ----------
 
 fn leaks_task(
     f: impl FnOnce() -> Result<serde_json::Value, String> + Send + 'static,
@@ -420,8 +406,6 @@ pub unsafe extern "C" fn anyway_leaks_clear(db_path: *const c_char) -> *mut c_ch
     leaks_task(move || anyway_core::leaks::clear(&path))
 }
 
-// ---------- Entity store ----------
-
 #[no_mangle]
 pub unsafe extern "C" fn anyway_estore_ingest(payload: *const c_char) -> *mut c_char {
     let body = read_str(payload);
@@ -477,8 +461,6 @@ pub unsafe extern "C" fn anyway_estore_clear(db_path: *const c_char) -> *mut c_c
     let path = read_str(db_path);
     leaks_task(move || anyway_core::estore::clear(&path))
 }
-
-// ---------- Scan scheduler ----------
 
 #[no_mangle]
 pub unsafe extern "C" fn anyway_scheduler_set(entries_json: *const c_char) -> *mut c_char {
@@ -543,5 +525,38 @@ pub unsafe extern "C" fn anyway_scheduler_snapshot(id: *const c_char) -> *mut c_
 pub unsafe extern "C" fn anyway_free(ptr: *mut c_char) {
     if !ptr.is_null() {
         drop(CString::from_raw(ptr));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cjson(s: &str) -> *mut c_char {
+        CString::new(s).unwrap().into_raw()
+    }
+
+    fn take_str(ptr: *mut c_char) -> String {
+        let s = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { anyway_free(ptr) };
+        s
+    }
+
+    #[test]
+    fn scheduler_set_and_snapshot_survive_without_ambient_runtime() {
+        let id = "sched-ffi-snap-test";
+        let set_ptr = cjson(&format!(
+            r#"[{{"id":"{id}","query":"mel0k1","interval_secs":3600}}]"#
+        ));
+        let out = take_str(unsafe { anyway_scheduler_set(set_ptr) });
+        assert!(out.contains(r#""ok":true"#), "{out}");
+
+        let id_ptr = cjson(id);
+        let out = take_str(unsafe { anyway_scheduler_snapshot(id_ptr) });
+        assert!(out.contains("no stored snapshot"), "{out}");
+
+        let id_ptr = cjson(id);
+        let out = take_str(unsafe { anyway_scheduler_remove(id_ptr) });
+        assert!(out.contains(r#""ok":true"#), "{out}");
     }
 }

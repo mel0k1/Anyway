@@ -14,8 +14,6 @@ const DESCRIPTOR: super::ModuleDescriptor = super::ModuleDescriptor {
     accepts: &[TargetKind::Domain],
 };
 
-/// Parse a Wayback CDX JSON payload (first row is the header) into
-/// (subdomain, archived URL) pairs.
 pub fn parse_cdx(rows: &[serde_json::Value]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     if rows.len() < 2 {
@@ -41,7 +39,6 @@ pub fn parse_cdx(rows: &[serde_json::Value]) -> Vec<(String, String)> {
     out
 }
 
-/// Extract (ip, hostname) pairs from a VirusTotal passive_dns response.
 pub fn parse_vt(data: &[serde_json::Value]) -> Vec<(String, String)> {
     data.iter()
         .filter_map(|r| {
@@ -62,7 +59,6 @@ impl Module for PdnsModule {
         let domain = ctx.target.normalized.clone();
         ctx.progress(0, 2).await;
 
-        // ---- Wayback Machine CDX (no key required) ----
         let wayback_url = format!(
             "http://web.archive.org/cdx/search/cdx?url={domain}/*&output=json&collapse=urlkey&fl=timestamp,original&limit=500"
         );
@@ -124,7 +120,6 @@ impl Module for PdnsModule {
         }
         ctx.progress(1, 2).await;
 
-        // ---- VirusTotal passive DNS (needs an API key) ----
         let key = ctx.options.vt_api_key.trim().to_string();
         if key.is_empty() {
             ctx.note("virustotal: no API key, passive DNS skipped")

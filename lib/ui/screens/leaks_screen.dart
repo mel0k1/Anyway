@@ -6,9 +6,6 @@ import 'dart:io';
 import '../../core/models.dart';
 import '../../core/rust_core.dart';
 
-/// Local breach-dump indexing: import text/JSONL/CSV dumps into a SQLite
-/// database on this device and search it offline by email, username,
-/// phone or domain.
 class LeaksScreen extends StatefulWidget {
   const LeaksScreen({super.key});
 
@@ -60,8 +57,7 @@ class _LeaksScreenState extends State<LeaksScreen> {
       final file = await openFile(acceptedTypeGroups: [group]);
       if (file == null || _dbPath == null) return;
       setState(() => _busy = true);
-      // the Rust side reads the file directly, so multi-GB dumps never hit
-      // a Dart string
+
       final source = file.name.replaceAll(RegExp(r'\.[a-z0-9]+$', caseSensitive: false), '');
       final res = RustCore.leaksImportFile(_dbPath!, source, file.path);
       await _refreshStats();

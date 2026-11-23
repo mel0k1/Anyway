@@ -1,10 +1,6 @@
 use rusqlite::Connection;
 use serde_json::{json, Value};
 
-/// Persistent cross-scan entity index: every finished scan feeds its findings
-/// into one SQLite store, so identities can be tracked over time ("first
-/// seen", "last seen", "changed"). Observations keep the per-scan history that
-/// powers diffs between any two scans.
 pub const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS entities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,9 +36,6 @@ fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
-/// Ingest one scan snapshot into the store. Empty values and findings without
-/// a value are skipped; a scan ingested twice is a no-op for observations but
-/// still refreshes `last_seen`/`times_seen`.
 pub fn ingest(db_path: &str, snapshot: &Value, scan_id: &str) -> Result<Value, String> {
     let scan = {
         let s = scan_id.trim();
@@ -154,8 +147,6 @@ fn like_escaped(q: &str) -> String {
         .replace('_', "\\_")
 }
 
-/// Search entities by value/label substring. `kind` filters to one category or
-/// is empty / "all" for everything.
 pub fn search(
     db_path: &str,
     query: &str,
@@ -218,7 +209,6 @@ fn query_rows(
     Ok(out)
 }
 
-/// Full record for one entity, including every scan that observed it.
 pub fn entity(db_path: &str, id: i64) -> Result<Value, String> {
     let conn = open(db_path)?;
     let base = query_rows(
@@ -246,8 +236,6 @@ pub fn entity(db_path: &str, id: i64) -> Result<Value, String> {
     Ok(json!({"ok": true, "entity": e, "observations": observations}))
 }
 
-/// Compare two scans by their observation sets: entities seen in one scan but
-/// not the other appeared or disappeared between the runs.
 pub fn diff(db_path: &str, scan_id_a: &str, scan_id_b: &str) -> Result<Value, String> {
     let conn = open(db_path)?;
     let only_in = |a: &str, b: &str| -> Result<Vec<Value>, String> {
@@ -316,11 +304,11 @@ mod tests {
     fn ingest_dedups_and_tracks() {
         let db = temp_db("ingest");
         let r = ingest(&db, &snap(), "scan-a").unwrap();
-        // 4 findings -> 2 distinct non-empty entities; the duplicate Adobe entry updates
+
         assert_eq!(r["findings_seen"], 3);
         assert_eq!(r["new_entities"], 2);
         assert_eq!(r["updated_entities"], 1);
-        // second ingest of the same scan: nothing new, counts move to updated
+
         let r2 = ingest(&db, &snap(), "scan-a").unwrap();
         assert_eq!(r2["new_entities"], 0);
         assert_eq!(r2["updated_entities"], 3);
@@ -345,7 +333,7 @@ mod tests {
             by_query["entities"][0]["value"],
             "https://github.com/mel0k1"
         );
-        // LIKE wildcards stay literal
+
         assert_eq!(
             search(&db, "%", "all", 100, 0).unwrap()["total_returned"],
             0

@@ -6,15 +6,11 @@ use tokio::io::{copy_bidirectional, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tor_rtcompat::PreferredRuntime;
 
-/// Embedded Tor client (arti) with a local SOCKS5 endpoint. Used when no
-/// external Tor daemon is listening: `Auto` mode prefers the daemon, falls
-/// back to this embedded client, and only then goes direct; `On` mode fails
-/// closed until either is ready.
 pub const ARTI_SOCKS_PORT: u16 = 9051;
 const MAX_HANDSHAKE: usize = 512;
 
 pub struct ArtiShared {
-    status: &'static str, // starting | bootstrapping | ready | failed
+    status: &'static str,
     port: u16,
     detail: String,
     started_at: u64,
@@ -48,12 +44,10 @@ fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
-/// True when the embedded client has finished bootstrapping.
 pub fn ready() -> bool {
     shared().lock().expect("arti shared").status == "ready"
 }
 
-/// The SOCKS URL the embedded client serves, when it is ready.
 pub fn proxy_url() -> Option<String> {
     if ready() {
         Some(format!("socks5h://127.0.0.1:{}", ARTI_SOCKS_PORT))
@@ -62,7 +56,6 @@ pub fn proxy_url() -> Option<String> {
     }
 }
 
-/// Compact status for other core modules.
 pub fn status_lite() -> Value {
     let s = shared().lock().expect("arti shared");
     json!({
@@ -72,8 +65,6 @@ pub fn status_lite() -> Value {
     })
 }
 
-/// Full status report (FFI surface). The guard is taken here and never
-/// nested with other lock acquisitions on the same thread.
 pub fn status() -> Value {
     let s = shared().lock().expect("arti shared");
     status_locked(&s)
@@ -92,10 +83,7 @@ fn status_locked(s: &ArtiShared) -> Value {
     })
 }
 
-/// Start the embedded client if it is not running yet. Idempotent: a second
-/// call returns the current status without touching the running client.
 pub fn start(port: u16, data_dir: PathBuf) -> Value {
-    // every branch of this function must drop the guard before locking again
     let current;
     {
         let mut s = shared().lock().expect("arti shared");
@@ -111,8 +99,6 @@ pub fn start(port: u16, data_dir: PathBuf) -> Value {
         }
     }
     if current["status"] == "starting" {
-        // the client lives on its own OS thread with a dedicated runtime, so
-        // start() works from any context (FFI sync path, engine, tests)
         std::thread::spawn(move || {
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -132,8 +118,6 @@ pub fn start(port: u16, data_dir: PathBuf) -> Value {
     current
 }
 
-/// Fire-and-forget start with default settings; used by the scan engine's
-/// auto mode. Safe to call from any thread or async context.
 pub fn kick_start() {
     let dir = std::env::temp_dir().join("anyway-arti");
     start(ARTI_SOCKS_PORT, dir);
@@ -205,8 +189,6 @@ fn set_status(status: &'static str) {
     shared().lock().expect("arti shared").status = status;
 }
 
-/// Serve one SOCKS5 connection: handshake, then tunnel through Tor.
-/// Returns 1 when a tunnel was established, 0 for a failed handshake.
 async fn serve_conn(client: Arc<TorClient<PreferredRuntime>>, mut sock: TcpStream) -> u8 {
     let Ok((host, port)) = handshake(&mut sock).await else {
         return 0;
@@ -224,7 +206,6 @@ async fn serve_conn(client: Arc<TorClient<PreferredRuntime>>, mut sock: TcpStrea
     }
 }
 
-/// Read a minimal SOCKS5 CONNECT handshake. No auth, CONNECT only.
 async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
     let mut head = [0u8; 2];
     sock.read_exact(&mut head).await.map_err(|_| ())?;
@@ -235,7 +216,6 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
     let mut methods = vec![0u8; nmethods];
     sock.read_exact(&mut methods).await.map_err(|_| ())?;
     if !methods.contains(&0x00) {
-        // no auth method in common
         let _ = sock.write_all(&[0x05, 0xFF]).await;
         return Err(());
     }
@@ -244,17 +224,43 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
     let mut req = [0u8; 4];
     sock.read_exact(&mut req).await.map_err(|_| ())?;
     if req[0] != 0x05 || req[1] != 0x01 {
-        // only CONNECT is supported
         let _ = sock
             .write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
             .await;
         return Err(());
     }
     let atyp = req[3];
-    let body_len = match atyp {
-        0x01 => 4 + 2,
-        0x03 => 1 + 2, // read length byte first
-        0x04 => 16 + 2,
+    let body: Vec<u8> = match atyp {
+        0x01 => {
+            let mut b = vec![0u8; 6];
+            sock.read_exact(&mut b).await.map_err(|_| ())?;
+            b
+        }
+        0x03 => {
+            let mut lb = [0u8; 1];
+            sock.read_exact(&mut lb).await.map_err(|_| ())?;
+            let n = lb[0] as usize;
+            if n == 0 || 1 + n + 2 > MAX_HANDSHAKE {
+                let _ = sock
+                    .write_all(&[0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                    .await;
+                return Err(());
+            }
+            let mut b = Vec::with_capacity(1 + n + 2);
+            b.push(lb[0]);
+            let mut host = vec![0u8; n];
+            sock.read_exact(&mut host).await.map_err(|_| ())?;
+            b.extend_from_slice(&host);
+            let mut tail = [0u8; 2];
+            sock.read_exact(&mut tail).await.map_err(|_| ())?;
+            b.extend_from_slice(&tail);
+            b
+        }
+        0x04 => {
+            let mut b = vec![0u8; 18];
+            sock.read_exact(&mut b).await.map_err(|_| ())?;
+            b
+        }
         _ => {
             let _ = sock
                 .write_all(&[0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
@@ -262,11 +268,6 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
             return Err(());
         }
     };
-    if body_len > MAX_HANDSHAKE {
-        return Err(());
-    }
-    let mut body = vec![0u8; body_len];
-    sock.read_exact(&mut body).await.map_err(|_| ())?;
     let mut full = Vec::with_capacity(4 + body.len());
     full.extend_from_slice(&req);
     full.extend_from_slice(&body);
@@ -281,14 +282,12 @@ async fn handshake(sock: &mut TcpStream) -> Result<(String, u16), ()> {
     }
 }
 
-/// Parse the raw SOCKS5 request ([ver, cmd, rsv, atyp, addr..., port_hi, port_lo]).
-/// Returns (host, port) or the SOCKS5 reply code for the failure.
 fn parse_socks5_request(buf: &[u8]) -> Result<(String, u16), u8> {
     if buf.len() < 5 || buf[0] != 0x05 {
         return Err(0x01);
     }
     if buf[1] != 0x01 {
-        return Err(0x07); // command not supported
+        return Err(0x07);
     }
     let port = u16::from_be_bytes([buf[buf.len() - 2], buf[buf.len() - 1]]);
     match buf[3] {
@@ -318,7 +317,7 @@ fn parse_socks5_request(buf: &[u8]) -> Result<(String, u16), u8> {
             octets.copy_from_slice(&buf[4..20]);
             Ok((std::net::Ipv6Addr::from(octets).to_string(), port))
         }
-        _ => Err(0x08), // address type not supported
+        _ => Err(0x08),
     }
 }
 
@@ -362,22 +361,21 @@ mod tests {
 
     #[test]
     fn rejects_malformed_requests() {
-        // wrong version
         let mut bad = req(0x03, b"\x04mail", 25);
         bad[0] = 0x04;
         assert_eq!(parse_socks5_request(&bad), Err(0x01));
-        // BIND instead of CONNECT
+
         let mut bind = req(0x03, b"\x04mail", 25);
         bind[1] = 0x02;
         assert_eq!(parse_socks5_request(&bind), Err(0x07));
-        // truncated address
+
         assert_eq!(
             parse_socks5_request(&[0x05, 0x01, 0x00, 0x01, 1, 2, 3]),
             Err(0x01)
         );
-        // zero-length domain
+
         assert_eq!(parse_socks5_request(&req(0x03, b"", 80)), Err(0x01));
-        // unknown address type
+
         assert_eq!(parse_socks5_request(&req(0x09, &[1, 2], 80)), Err(0x08));
     }
 
@@ -391,11 +389,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn handshake_reads_domain_requests() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            handshake(&mut sock).await
+        });
+        let mut c = TcpStream::connect(addr).await.unwrap();
+        c.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
+        let mut sel = [0u8; 2];
+        c.read_exact(&mut sel).await.unwrap();
+        assert_eq!(sel, [0x05, 0x00]);
+        let mut msg = vec![0x05, 0x01, 0x00, 0x03, 0x0b];
+        msg.extend_from_slice(b"example.org");
+        msg.extend_from_slice(&443u16.to_be_bytes());
+        c.write_all(&msg).await.unwrap();
+        let (host, port) = server.await.unwrap().unwrap();
+        assert_eq!(host, "example.org");
+        assert_eq!(port, 443);
+    }
+
+    #[tokio::test]
     async fn start_is_idempotent() {
         let dir = std::env::temp_dir().join(format!("arti-test-{}", std::process::id()));
         let first = start(ARTI_SOCKS_PORT, dir.clone());
         let second = start(ARTI_SOCKS_PORT, dir);
-        // both calls report the same lifecycle state, and neither resets it
+
         assert_eq!(first["status"], second["status"]);
         assert!(
             first["status"] == "starting"

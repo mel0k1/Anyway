@@ -93,7 +93,6 @@ pub struct ModuleCtx {
     pub cancel: CancellationToken,
     state: Arc<RwLock<ScanState>>,
     row: String,
-    row_label: String,
 }
 
 fn row_key(id: &str, label: &str) -> String {
@@ -101,14 +100,6 @@ fn row_key(id: &str, label: &str) -> String {
         id.to_string()
     } else {
         format!("{id}\u{1}{label}")
-    }
-}
-
-fn row_display(id: &str, label: &str) -> String {
-    if label.is_empty() {
-        id.to_string()
-    } else {
-        format!("{id} · {label}")
     }
 }
 
@@ -131,7 +122,7 @@ impl ModuleCtx {
         }
         s.log.push(format!(
             "[{}] + {}",
-            row_display(&self.row, &self.row_label),
+            self.row.replace('\u{1}', " · "),
             finding.label
         ));
         s.findings.push(finding);
@@ -139,11 +130,8 @@ impl ModuleCtx {
 
     pub async fn note(&self, line: &str) {
         let mut s = self.state.write().await;
-        s.log.push(format!(
-            "[{}] {}",
-            row_display(&self.row, &self.row_label),
-            line
-        ));
+        s.log
+            .push(format!("[{}] {}", self.row.replace('\u{1}', " · "), line));
     }
 
     pub fn cancelled(&self) -> bool {
@@ -168,7 +156,6 @@ async fn run_wave(
         let row = row_key(module.id(), &label);
         let ctx = ModuleCtx {
             row: row.clone(),
-            row_label: label,
             target,
             client: client.clone(),
             options: options.clone(),
@@ -491,8 +478,7 @@ pub fn launch(scan_id: String, query: String, mut options: ScanOptions) -> ScanH
 
     let listening = crate::tor::tor_listening(&options);
     let arti_ready = options.embedded_tor && crate::arti::ready();
-    // auto mode: warm up the embedded client for later scans when nothing is
-    // available right now; this scan still runs direct
+
     if options.tor_mode == TorMode::Auto && !listening && !arti_ready && options.embedded_tor {
         crate::arti::kick_start();
     }
@@ -650,8 +636,6 @@ mod tests {
     fn row_keys_are_label_scoped() {
         assert_eq!(row_key("m", ""), "m");
         assert_ne!(row_key("m", "a"), row_key("m", "b"));
-        assert_eq!(row_display("m", ""), "m");
-        assert_eq!(row_display("m", "x"), "m \u{b7} x");
     }
 
     #[test]

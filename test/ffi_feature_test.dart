@@ -6,27 +6,18 @@ import 'package:anyway/core/models.dart';
 import 'package:anyway/core/rust_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Integration check for the FFI surface added in this iteration: Tor status,
-/// image hashing + OCR, reverse links, entity resolution, timeline, the local
-/// leak index and the scan scheduler.
-///
-/// Runs against the release FFI library when it is available on the machine:
-///   LD_LIBRARY_PATH=native/target/release flutter test test/ffi_feature_test.dart
-/// Skipped silently in environments without the native core (plain CI runs).
 void main() {
   test('new FFI surface: tor, imaging, resolve, timeline, leaks, scheduler', () async {
     if (!RustCore.available) {
-      return; // native core not built here — CI runs the Rust tests instead
+      return;
     }
     print('core version: ${RustCore.version()}');
 
-    // ---------- Tor ----------
     final tor = RustCore.torCheck(jsonEncode({'tor_mode': 'auto', 'tor_socks_port': 9050}));
     print('tor: listening=${tor['listening']} mode=${tor['mode']} isTor=${tor['isTor']}');
     final torOn = RustCore.torCheck(jsonEncode({'tor_mode': 'on', 'tor_socks_port': 9905}));
     print('tor fail-closed: proxy=${torOn['proxy']} listening=${torOn['listening']}');
 
-    // ---------- Imaging ----------
     final png = await File('assets/brand/icon-256.png').readAsBytes();
     final intel = RustCore.imageIntel(base64Encode(png), ocr: true, langs: 'eng');
     print('image: ${intel['format']} ${intel['width']}x${intel['height']} phash=${intel['phash']}');
@@ -40,7 +31,6 @@ void main() {
     final links = RustCore.reverseLinks('https://example.com/pic.jpg');
     print('reverse engines: ${(links['engines'] as List).map((e) => e['name']).join(', ')}');
 
-    // ---------- Entity resolution + timeline ----------
     final snapshot = jsonEncode({
       'findings': [
         {
@@ -74,7 +64,6 @@ void main() {
     print('timeline events: ${timeline['total']}');
     expect((timeline['total'] as num).toInt(), 1);
 
-    // ---------- Leaks ----------
     final db = '${Directory.systemTemp.path}/anyway_ffi_check_leaks.sqlite';
     final dbFile = File(db);
     if (dbFile.existsSync()) dbFile.deleteSync();
@@ -93,7 +82,6 @@ void main() {
     RustCore.leaksClear(db);
     if (dbFile.existsSync()) dbFile.deleteSync();
 
-    // ---------- Scheduler ----------
     RustCore.schedulerSet('[]');
     final id = RustCore.schedulerUpsert(jsonEncode({
       'query': 'example.org',
@@ -108,7 +96,6 @@ void main() {
     expect(RustCore.schedulerRemove(id), isTrue);
     expect(RustCore.schedulerList(), hasLength(0));
 
-    // ---------- Scan lifecycle: finish, release, then unknown ----------
     final badId = RustCore.scanStart('example.org', proxy: 'bad://x');
     ScanSnapshot? snap;
     for (var i = 0; i < 50; i++) {
@@ -118,9 +105,9 @@ void main() {
     }
     expect(snap?.status, 'failed');
     expect(RustCore.scanRelease(badId), isTrue);
-    // released scans are unknown to the manager; poll reports null
+
     expect(RustCore.scanPoll(badId), isNull);
-    // releasing again is a clean no-op false
+
     expect(RustCore.scanRelease(badId), isFalse);
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

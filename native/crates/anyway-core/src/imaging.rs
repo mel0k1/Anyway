@@ -86,7 +86,6 @@ fn grayscale_32(img: &DynamicImage) -> ImageBuffer<Luma<f32>, Vec<f32>> {
     out
 }
 
-/// Classic 8x8 DCT perceptual hash over a 32x32 grayscale buffer.
 pub fn phash64(gray: &ImageBuffer<Luma<f32>, Vec<f32>>) -> u64 {
     let n = DCT_SIZE;
     let rows: Vec<Vec<f64>> = (0..n)
@@ -97,7 +96,7 @@ pub fn phash64(gray: &ImageBuffer<Luma<f32>, Vec<f32>>) -> u64 {
             dct1d(&row)
         })
         .collect();
-    // 2D DCT is separable: DCT over rows, then over the resulting columns.
+
     let freq: Vec<Vec<f64>> = (0..HASH_SIZE as usize)
         .map(|u| {
             (0..HASH_SIZE as usize)
@@ -131,7 +130,6 @@ pub fn phash64(gray: &ImageBuffer<Luma<f32>, Vec<f32>>) -> u64 {
     pack_bits(&bits)
 }
 
-/// Horizontal 9x8 difference hash.
 pub fn dhash64(img: &DynamicImage) -> u64 {
     let small = img
         .resize_exact(
@@ -151,7 +149,6 @@ pub fn dhash64(img: &DynamicImage) -> u64 {
     pack_bits(&bits)
 }
 
-/// Mean 8x8 average hash over a dedicated 8x8 grayscale resize.
 pub fn ahash64(gray8: &image::GrayImage) -> u64 {
     let mut sum = 0.0f64;
     for p in gray8.pixels() {
@@ -221,8 +218,6 @@ impl HashComparison {
     }
 }
 
-/// Compare two hex-encoded hash triplets; "similar" uses the common
-/// pHash <= 10 heuristic, weighted with dHash agreement.
 pub fn compare_hashes(a: &Value, b: &Value) -> Result<HashComparison, String> {
     let get = |v: &Value, key: &str| -> Result<u64, String> {
         v[key]
@@ -245,7 +240,6 @@ pub fn compare_hashes(a: &Value, b: &Value) -> Result<HashComparison, String> {
     })
 }
 
-/// Local CBIR index helpers: the index itself lives as JSON on the Dart side.
 pub fn index_add(index: &Value, entry: Value) -> Result<Value, String> {
     if entry.get("phash").and_then(Value::as_str).is_none() {
         return Err("entry needs a 'phash'".into());
@@ -258,7 +252,6 @@ pub fn index_add(index: &Value, entry: Value) -> Result<Value, String> {
     Ok(Value::Array(arr))
 }
 
-/// Rank index entries against a probe hash triplet.
 pub fn index_search(
     index: &Value,
     probe: &Value,
@@ -287,7 +280,6 @@ pub fn index_search(
     Ok(json!({"ok": true, "matches": matches, "total": matches.len()}))
 }
 
-/// Deep-link reverse image searches for engines that accept an image URL.
 pub fn reverse_links(image_url: &str) -> Value {
     let url = image_url.trim();
     if url.is_empty() || !url.starts_with("http") {
@@ -319,7 +311,6 @@ fn urlencoding_lite(s: &str) -> String {
     out
 }
 
-/// OCR via the system `tesseract` binary. Returns extracted text.
 pub async fn ocr_bytes(bytes: &[u8], langs: &str, psm: &str) -> Result<Value, String> {
     if bytes.len() > 64 * 1024 * 1024 {
         return Err("image too large for OCR (>64MB)".into());
@@ -406,7 +397,6 @@ pub async fn ocr_available() -> Value {
     }
 }
 
-/// Persist-friendly probe: hashes + optional OCR in one call.
 pub async fn intel_bytes(bytes: &[u8], ocr: bool, langs: &str) -> Result<Value, String> {
     let hashes = hashes_from_bytes(bytes)?;
     let mut v = hashes.to_json();
@@ -420,7 +410,6 @@ pub async fn intel_bytes(bytes: &[u8], ocr: bool, langs: &str) -> Result<Value, 
     Ok(v)
 }
 
-/// Base64 variant for FFI callers that transport images as strings.
 pub async fn intel_bytes_base64(data_b64: &str, ocr: bool, langs: &str) -> Result<Value, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data_b64.trim())
@@ -483,9 +472,7 @@ mod tests {
         assert_ne!(a.phash, c.phash);
         assert_ne!(a.dhash, c.dhash);
         assert_ne!(a.ahash, c.ahash);
-        // flat red vs flat blue: identical structure. aHash and dHash are
-        // stable on constant images; pHash is degenerate there (all AC
-        // coefficients are ~0, the median comparison runs on rounding noise).
+
         let b = hashes_from_bytes(&flat([0, 0, 255])).unwrap();
         assert_eq!(a.ahash, b.ahash);
         assert_eq!(a.dhash, b.dhash);
@@ -546,7 +533,6 @@ mod tests {
 
     #[tokio::test]
     async fn ocr_graceful_without_or_with_tesseract() {
-        // Both outcomes are acceptable in CI; the function must not panic.
         if let Ok(v) = ocr_bytes(&flat([255, 255, 255]), "eng", "7").await {
             assert_eq!(v["ok"], true);
         }

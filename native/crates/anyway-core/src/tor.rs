@@ -4,7 +4,6 @@ use serde_json::json;
 use std::net::TcpStream;
 use std::time::Duration;
 
-/// Probe the local Tor SOCKS port with a short TCP connect.
 pub fn tor_listening(options: &ScanOptions) -> bool {
     let addr = format!("127.0.0.1:{}", options.tor_socks_port);
     let Ok(addr) = addr.parse() else {
@@ -35,8 +34,6 @@ impl TorCheck {
     }
 }
 
-/// Verify the Tor route end to end: SOCKS port open (daemon or embedded) and
-/// an exit node reachable.
 pub async fn check(options: &ScanOptions) -> TorCheck {
     let daemon_listening = tor_listening(options);
     let arti_ready = options.embedded_tor && crate::arti::ready();
@@ -97,12 +94,12 @@ mod tests {
             opts(TorMode::Auto, "", 9050).effective_proxy(true),
             "socks5h://127.0.0.1:9050"
         );
-        // explicit proxy always wins
+
         assert_eq!(
             opts(TorMode::On, "http://corp:3128", 9050).effective_proxy(true),
             "http://corp:3128"
         );
-        // custom port respected
+
         assert_eq!(
             opts(TorMode::On, "", 9051).effective_proxy(false),
             "socks5h://127.0.0.1:9051"
@@ -119,7 +116,6 @@ mod tests {
 
     #[test]
     fn listening_false_without_tor() {
-        // Nothing listens on 9905 in the test environment.
         let mut o = opts(TorMode::Auto, "", 9905);
         o.tor_socks_port = 9905;
         assert!(!tor_listening(&o));

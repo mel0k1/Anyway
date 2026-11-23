@@ -6,9 +6,6 @@ import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
 
-/// Correlation clusters and timeline events computed by the native core.
-/// The exporter renders them only when the caller supplies them, so mock-mode
-/// tests stay deterministic.
 class CorrelationSection {
   final List<Map<String, dynamic>> clusters;
   final List<Map<String, dynamic>> timeline;

@@ -57,10 +57,6 @@ pub struct PivotLink {
     pub via: String,
 }
 
-/// How the scan should route network traffic.
-/// - `Auto`: use a local Tor SOCKS port when one is listening, otherwise go direct.
-/// - `On`: always route through Tor; the scan fails closed when Tor is unreachable.
-/// - `Off`: never touch Tor, use the explicit proxy (or direct) as configured.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TorMode {
@@ -149,18 +145,10 @@ impl ScanOptions {
         format!("socks5h://127.0.0.1:{}", self.tor_socks_port)
     }
 
-    /// Resolve which proxy URL the scan should use.
-    ///
-    /// `tor_listening` reflects whether the local Tor SOCKS port accepted a TCP
-    /// connection. An explicit user proxy always wins; Tor applies otherwise.
-    /// `On` keeps routing through Tor even when unreachable, so the scan fails
-    /// closed instead of leaking traffic.
     pub fn effective_proxy(&self, tor_listening: bool) -> String {
         self.effective_proxy_with(tor_listening, false)
     }
 
-    /// Same, but also considers the embedded (arti) Tor client as a fallback
-    /// route when the external daemon is absent.
     pub fn effective_proxy_with(&self, tor_listening: bool, arti_ready: bool) -> String {
         let explicit = self.proxy.trim();
         if !explicit.is_empty() {

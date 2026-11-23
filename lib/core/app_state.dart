@@ -48,10 +48,8 @@ class AppState extends ChangeNotifier {
   Map<String, dynamic> artiStatus = {};
   Map<String, dynamic>? ocrInfo;
 
-  /// Persistent entity store (SQLite) fed by every finished scan.
   String estorePath = '';
 
-  /// Planner events: scheduled runs that surfaced new findings.
   List<Map<String, dynamic>> plannerJournal = [];
   final Map<String, int> _lastNewFindings = {};
   Timer? _artiTimer;
@@ -161,8 +159,6 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // ---------- Tor ----------
-
   String _torOptionsJson() => jsonEncode({
     'tor_mode': torMode,
     'tor_socks_port': torSocksPort,
@@ -213,8 +209,6 @@ class AppState extends ChangeNotifier {
     await prefs.setString('vtApiKey', vtApiKey);
     notifyListeners();
   }
-
-  // ---------- Scan scheduler ----------
 
   Future<void> _initScheduler() async {
     try {
@@ -482,7 +476,7 @@ class AppState extends ChangeNotifier {
   }
 
   void startScan(String query) {
-    // free the previous finished scan's native snapshot before replacing it
+
     final previousId = activeScan?.scanId;
     if (previousId != null && activeScan?.running != true) {
       try {
@@ -609,7 +603,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Correlation clusters + timeline from the native core; empty in mock mode.
   CorrelationSection? _correlationSection(ScanSnapshot snap) {
     if (!nativeReady) return null;
     try {

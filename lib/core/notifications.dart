@@ -1,7 +1,5 @@
 import 'dart:io';
 
-/// Best-effort desktop notification. Silent no-op when the platform helper is
-/// unavailable; the in-app planner journal is the source of truth.
 Future<void> notifyOs(String title, String body) async {
   try {
     if (Platform.isLinux) {

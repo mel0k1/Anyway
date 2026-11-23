@@ -10,8 +10,6 @@ import '../../core/app_state.dart';
 import '../../core/models.dart';
 import '../../core/rust_core.dart';
 
-/// Visual recon: perceptual hashes, local CBIR index, OCR and deep links to
-/// reverse image search engines.
 class ImagesScreen extends StatefulWidget {
   final AppState state;
 

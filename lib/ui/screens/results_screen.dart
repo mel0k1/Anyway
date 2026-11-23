@@ -214,7 +214,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  /// Cross-platform entity resolution over the current snapshot.
   Future<void> _showCorrelation(BuildContext context) async {
     final snap = widget.state.lastSnapshot ?? widget.state.activeScan;
     if (snap == null) return;
@@ -305,7 +304,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  /// Unified activity timeline assembled from every date-bearing detail field.
   Future<void> _showTimeline(BuildContext context) async {
     final snap = widget.state.lastSnapshot ?? widget.state.activeScan;
     if (snap == null) return;

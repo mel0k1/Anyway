@@ -55,7 +55,6 @@ void main() {
     expect(snap.running, isFalse);
   });
 
-
   test('multi-target detection uses first token', () {
     expect(detectTargetKind('torvalds, example.org'), TargetKind.username);
     expect(detectTargetKind('8.8.8.8; 1.1.1.1; 9.9.9.9'), TargetKind.ipAddress);

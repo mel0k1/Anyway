@@ -3,10 +3,6 @@ use printpdf::{
 };
 use serde_json::Value;
 
-/// A4 report renderer: target summary, per-module findings, correlation
-/// clusters and the timeline, laid out with absolute text positioning and
-/// manual pagination. Uses an embedded DejaVu font so Cyrillic works on any
-/// platform.
 const FONT: &[u8] = include_bytes!("../../../assets/fonts/DejaVuSans.ttf");
 
 const PAGE_W_MM: f32 = 210.0;
@@ -15,7 +11,7 @@ const MARGIN_MM: f32 = 22.0;
 const BOTTOM_MM: f32 = 20.0;
 
 struct Line {
-    size: f32, // pt
+    size: f32,
     bold_gap: bool,
     text: String,
 }
@@ -39,7 +35,13 @@ fn wrap(text: &str, max_chars: usize) -> Vec<String> {
                     out.push(current.clone());
                     current.clear();
                 }
-                out.push(word.chars().take(max_chars).collect());
+                let chars: Vec<char> = word.chars().collect();
+                let mut idx = 0;
+                while idx + max_chars <= chars.len() {
+                    out.push(chars[idx..idx + max_chars].iter().collect());
+                    idx += max_chars;
+                }
+                current = chars[idx..].iter().collect();
                 continue;
             }
             if !current.is_empty() {
@@ -58,7 +60,6 @@ fn wrap(text: &str, max_chars: usize) -> Vec<String> {
 }
 
 fn sanitize(text: &str) -> String {
-    // control characters break PDF text streams
     text.chars().filter(|c| !c.is_control()).collect::<String>()
 }
 
@@ -114,7 +115,6 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
         text: String::new(),
     });
 
-    // findings grouped by module
     let mut modules: Vec<(String, Vec<&Value>)> = Vec::new();
     if let Some(findings) = snapshot["findings"].as_array() {
         for f in findings {
@@ -162,7 +162,6 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
         }
     }
 
-    // correlation clusters
     let report = crate::resolve::resolve(snapshot, 45);
     let clusters = report.to_json(45)["clusters"]
         .as_array()
@@ -213,7 +212,6 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
         }
     }
 
-    // timeline
     let timeline = crate::resolve::build_timeline(snapshot)["events"]
         .as_array()
         .cloned()
@@ -245,7 +243,6 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
         }
     }
 
-    // ---- paginate ----
     let mm_per_pt: f32 = 0.3528;
     let mut pages: Vec<PdfPage> = Vec::new();
     let mut ops: Vec<Op> = Vec::new();
@@ -334,7 +331,7 @@ fn chrono_date(ts: i64) -> String {
     }
     let secs = ts;
     let days = secs / 86400;
-    // civil-from-days algorithm (Howard Hinnant)
+
     let z = days + 719_468;
     let era = z / 146_097;
     let doe = z - era * 146_097;
@@ -380,6 +377,14 @@ mod tests {
         assert!(parts.iter().all(|p| p.chars().count() <= 101));
         assert_eq!(wrap("short", 100), vec!["short"]);
         assert_eq!(wrap("", 100), vec![String::new()]);
+    }
+
+    #[test]
+    fn long_words_wrap_without_loss() {
+        let url = format!("https://example.org/{}", "a".repeat(250));
+        let parts = wrap(&url, 100);
+        assert_eq!(parts.concat(), url);
+        assert!(parts.iter().all(|p| p.chars().count() <= 100));
     }
 
     #[test]

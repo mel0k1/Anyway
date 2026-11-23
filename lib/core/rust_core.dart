@@ -230,8 +230,6 @@ class RustCore {
     }
   });
 
-  // ---------- helpers for the newer JSON-string FFI surface ----------
-
   static Map<String, dynamic> _json0(String name) => _call(() {
     final f = lib
         .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
@@ -315,14 +313,8 @@ class RustCore {
     return map;
   }
 
-  // ---------- Tor ----------
-
-  /// Returns {ok, listening, isTor, exitIp, proxy, mode} — never throws on an
-  /// unreachable Tor, callers render the status from the map.
   static Map<String, dynamic> torCheck(String optionsJson) =>
       _json1('anyway_tor_check', optionsJson);
-
-  // ---------- Imaging ----------
 
   static Map<String, dynamic> imageIntel(
     String b64, {
@@ -372,8 +364,6 @@ class RustCore {
     'index search',
   );
 
-  // ---------- Entity resolution ----------
-
   static Map<String, dynamic> resolveEntities(
     String snapshotJson,
     int threshold,
@@ -384,8 +374,6 @@ class RustCore {
 
   static Map<String, dynamic> buildTimeline(String snapshotJson) =>
       _must(_json1('anyway_build_timeline', snapshotJson), 'timeline');
-
-  // ---------- Embedded Tor (arti) ----------
 
   static Map<String, dynamic> artiStart(int port, String dataDir) => _call(() {
     final f = lib
@@ -406,8 +394,6 @@ class RustCore {
   static Map<String, dynamic> reportPdf(String snapshotJson) =>
       _must(_json1('anyway_report_pdf', snapshotJson), 'pdf report');
 
-  // ---------- Leak dumps ----------
-
   static Map<String, dynamic> leaksImport(
     String dbPath,
     String source,
@@ -420,8 +406,6 @@ class RustCore {
     'leaks import',
   );
 
-  /// Streamed import: the Rust side reads the file itself, so huge dumps
-  /// never travel through a Dart string.
   static Map<String, dynamic> leaksImportFile(
     String dbPath,
     String source,
@@ -459,8 +443,6 @@ class RustCore {
 
   static Map<String, dynamic> leaksClear(String dbPath) =>
       _must(_json1('anyway_leaks_clear', dbPath), 'leaks clear');
-
-  // ---------- Entity store ----------
 
   static Map<String, dynamic> estoreIngest(
     String dbPath,
@@ -526,8 +508,6 @@ class RustCore {
   static Map<String, dynamic> estoreClear(String dbPath) =>
       _must(_json1('anyway_estore_clear', dbPath), 'entity store clear');
 
-  // ---------- Scan scheduler ----------
-
   static int schedulerSet(String entriesJson) =>
       _must(
             _json1('anyway_scheduler_set', entriesJson),
@@ -555,7 +535,6 @@ class RustCore {
   static bool schedulerRemove(String id) =>
       _json1('anyway_scheduler_remove', id)['ok'] == true;
 
-  /// Free a finished scan's native snapshot; a running scan is refused.
   static bool scanRelease(String scanId) =>
       _json1('anyway_scan_release', scanId)['ok'] == true;
 

@@ -2,9 +2,6 @@ use rusqlite::Connection;
 use serde_json::{json, Value};
 use std::io::BufRead;
 
-/// Local breach-dump indexing: parse text/JSONL/CSV dumps into a SQLite
-/// database owned by the app and search it by email / username / phone /
-/// domain. Passwords are masked in search results unless explicitly revealed.
 pub const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +81,6 @@ pub struct ParsedRecord {
 }
 
 fn pick_password(fields: &[&str], used: usize) -> String {
-    // first non-credential, non-identifier field after the credential
     for f in fields.iter().skip(used + 1) {
         let f = f.trim();
         if f.is_empty() || is_email(f) || is_ip(f) || is_phone_token(f) || is_domain_like(f) {
@@ -178,7 +174,6 @@ fn parse_jsonl(obj: &Value) -> ParsedRecord {
     rec
 }
 
-/// Parse one dump line. Returns None for blank lines and comments.
 pub fn parse_line(line: &str) -> Option<ParsedRecord> {
     let line = line.trim_end_matches(['\r', '\n']);
     let trimmed = line.trim();
@@ -194,9 +189,9 @@ pub fn parse_line(line: &str) -> Option<ParsedRecord> {
             return None;
         }
     }
-    // CSV with a recognizable header?
+
     if trimmed.contains(',') && !trimmed.contains(':') {
-        return None; // handled at import level with headers
+        return None;
     }
     let separators = if trimmed.contains(';') && !trimmed.contains(':') {
         ';'
@@ -387,7 +382,7 @@ pub fn search(
         return Err("empty query".into());
     }
     let conn = open(db_path)?;
-    // escape LIKE wildcards so a query like "100%" matches literally
+
     let escaped = q
         .replace('\\', "\\\\")
         .replace('%', "\\%")
@@ -481,8 +476,6 @@ fn mask(password: &str) -> String {
     format!("{visible}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}")
 }
 
-/// Streamed import from a file on disk: the dump never travels through
-/// memory as a single Dart string. Line parsing matches `import_text`.
 pub fn import_file(db_path: &str, source: &str, file_path: &str) -> Result<Value, String> {
     if source.trim().is_empty() {
         return Err("source name is required".into());
@@ -680,17 +673,17 @@ mod tests {
         let db = temp_db("escape");
         let text = "aXb:pass1\na%b:pass2\na_b:pass3\n";
         import_text(&db, "wildcards", text).unwrap();
-        // % and _ match literally, not as SQL wildcards
+
         assert_eq!(search(&db, "a%b", 10, false, None).unwrap()["total"], 1);
         assert_eq!(search(&db, "a_b", 10, false, None).unwrap()["total"], 1);
         assert_eq!(
             search(&db, "a_b", 10, false, None).unwrap()["matches"][0]["username"],
             "a_b"
         );
-        // a bare wildcard query finds only records containing that literal char
+
         assert_eq!(search(&db, "%", 10, false, None).unwrap()["total"], 1);
         assert_eq!(search(&db, "_", 10, false, None).unwrap()["total"], 1);
-        // plain substring search matches all three
+
         assert_eq!(search(&db, "a", 10, false, None).unwrap()["total"], 3);
         let _ = std::fs::remove_file(&db);
     }
@@ -726,17 +719,17 @@ mod tests {
         let db = temp_db("fields");
         let text = "a@x.io:pw1234:deadbeefdeadbeefdeadbeefdeadbeef\n";
         import_text(&db, "fields", text).unwrap();
-        // explicit field override
+
         let by_pass = search(&db, "pw1234", 10, true, Some("password")).unwrap();
         assert_eq!(by_pass["total"], 1);
         assert_eq!(by_pass["queryField"], "password");
-        // revealed: the password comes back verbatim
+
         assert_eq!(by_pass["matches"][0]["password"], "pw1234");
-        // hash auto-detection routes to the hash column
+
         let by_hash = search(&db, "DEADBEEFDEADBEEFDEADBEEFDEADBEEF", 10, false, None).unwrap();
         assert_eq!(by_hash["queryField"], "hash");
         assert_eq!(by_hash["total"], 1);
-        // unknown field is rejected
+
         assert!(search(&db, "x", 10, false, Some("nope")).is_err());
         let _ = std::fs::remove_file(&db);
     }
@@ -753,7 +746,7 @@ john:doe:pass1\n\
 {\"email\": \"json@corp.io\", \"password\": \"jsonpw\"}\n";
         let res = import_text(&db, "combo-2023", text).unwrap();
         assert_eq!(res["lines"], 6);
-        assert_eq!(res["imported"], 4); // email dup skipped
+        assert_eq!(res["imported"], 4);
         assert_eq!(res["skipped"], 2);
 
         let s = search(&db, "victim@example.org", 100, false, None).unwrap();
@@ -778,7 +771,6 @@ john:doe:pass1\n\
         assert_eq!(st["records"], 4);
         assert_eq!(st["sources"][0]["name"], "combo-2023");
 
-        // second import into same db accumulates
         import_text(&db, "other", "second@corp.io:pw2").unwrap();
         let st2 = stats(&db).unwrap();
         assert_eq!(st2["records"], 5);

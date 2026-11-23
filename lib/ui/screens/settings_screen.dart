@@ -598,7 +598,6 @@ String _torStatusText(AppState state) {
   return 'Port open but the exit check did not confirm Tor traffic';
 }
 
-
 class _CategoryChip extends StatelessWidget {
   final CategoryInfo info;
   final CategoryState state;

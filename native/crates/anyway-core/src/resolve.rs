@@ -1,9 +1,6 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-/// Entity resolution over a scan snapshot: extract identities from findings,
-/// score cross-platform correlations and cluster them, plus build a unified
-/// activity timeline from every date-bearing detail field.
 pub const DEFAULT_LINK_THRESHOLD: u32 = 45;
 
 #[derive(Debug, Clone, Default)]
@@ -52,13 +49,13 @@ fn norm_handle(s: &str) -> String {
 
 fn handle_from_url(url: &str) -> Option<String> {
     let rest = url.trim().split("://").nth(1)?;
-    // drop query string and fragment before splitting the path
+
     let path = rest.split(['?', '#']).next().unwrap_or(rest);
     let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     if segs.len() < 2 {
-        return None; // host only, no profile path
+        return None;
     }
-    // profile handle is conventionally the last non-empty path segment
+
     segs.last()
         .map(|s| s.trim_start_matches('@').trim_end_matches('.').to_string())
         .filter(|s| !s.is_empty())
@@ -223,7 +220,6 @@ impl ScoredPair {
     }
 }
 
-/// Cross-platform correlation score between two identities (0..=100).
 pub fn score_pair(a: &Identity, b: &Identity) -> ScoredPair {
     let mut reasons: Vec<(String, u32)> = Vec::new();
     let mut total: u32 = 0;
@@ -424,15 +420,13 @@ pub fn resolve(snapshot: &Value, threshold: u32) -> ResolutionReport {
         clusters.entry(uf.find(i)).or_default().push(i);
     }
     let mut list: Vec<Vec<usize>> = clusters.into_values().collect();
-    list.sort_by_key(|c| std::cmp::Reverse(c.len()));
+    list.sort_by(|a, b| b.len().cmp(&a.len()).then(a[0].cmp(&b[0])));
     ResolutionReport {
         identities,
         pairs,
         clusters: list,
     }
 }
-
-// ---------------- Timeline ----------------
 
 #[derive(Debug, Clone)]
 pub struct TimelineEvent {
@@ -472,13 +466,12 @@ const DATE_KEYS: &[&str] = &[
     "postedAt",
 ];
 
-/// Parse the date formats that actually occur in module payloads.
 pub fn parse_date(raw: &str) -> Option<i64> {
     let s = raw.trim();
     if s.is_empty() || s == "null" || s == "?" {
         return None;
     }
-    // ISO forms: 2013-10-04[ T00:00:00Z...]
+
     let bytes = s.as_bytes();
     if bytes.len() >= 10
         && bytes[4] == b'-'
@@ -501,7 +494,7 @@ pub fn parse_date(raw: &str) -> Option<i64> {
         }
         return None;
     }
-    // RFC1123-ish: 04 Oct 2013
+
     let months = [
         "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
     ];
@@ -515,7 +508,14 @@ pub fn parse_date(raw: &str) -> Option<i64> {
                     if (1900..=2100).contains(&y) {
                         let day = toks
                             .iter()
-                            .find_map(|t| t.trim_end_matches(',').parse::<i64>().ok())
+                            .find_map(|t| {
+                                let d = t.trim_end_matches(',');
+                                if d.len() <= 2 && d.chars().all(|c| c.is_ascii_digit()) {
+                                    d.parse::<i64>().ok()
+                                } else {
+                                    None
+                                }
+                            })
                             .unwrap_or(1);
                         return Some(days_from_civil(y, mon as i64 + 1, day.clamp(1, 31)) * 86400);
                     }
@@ -526,7 +526,6 @@ pub fn parse_date(raw: &str) -> Option<i64> {
     None
 }
 
-/// Howard Hinnant's days_from_civil algorithm.
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
     let era = if y >= 0 { y } else { y - 399 } / 400;
@@ -563,7 +562,6 @@ pub fn build_timeline(snapshot: &Value) -> Value {
             continue;
         }
 
-        // flat date keys
         let mut found: Vec<(String, String)> = Vec::new();
         push_detail_dates(&detail, DATE_KEYS, &mut found);
         for (key, raw) in found {
@@ -577,7 +575,6 @@ pub fn build_timeline(snapshot: &Value) -> Value {
             });
         }
 
-        // rdap-style event list
         if let Some(evts) = detail["events"].as_array() {
             for e in evts {
                 let action = e["eventAction"].as_str().unwrap_or("event").to_string();
@@ -595,7 +592,6 @@ pub fn build_timeline(snapshot: &Value) -> Value {
             }
         }
 
-        // certificate lists
         if let Some(certs) = detail["certs"].as_array() {
             for c in certs {
                 for key in ["not_before", "not_after"] {
@@ -653,7 +649,7 @@ mod tests {
         assert_eq!(ids.len(), 3);
         assert_eq!(ids[0].handle, "mel0k1");
         assert_eq!(ids[0].platform, "GitHub");
-        assert_eq!(ids[1].handle, "mel0k1"); // case-normalized
+        assert_eq!(ids[1].handle, "mel0k1");
         assert_eq!(ids[1].display_name, "Mel");
         assert_eq!(ids[2].emails, vec!["victim@example.org"]);
         assert_eq!(ids[2].handle, "victim");
@@ -676,7 +672,7 @@ mod tests {
             ..Default::default()
         };
         let p = score_pair(&a, &b);
-        // identical handle (45) + shared email (25)
+
         assert!(p.score >= 70, "score {}", p.score);
         assert_eq!(confidence_of(p.score), "high");
 
@@ -751,6 +747,18 @@ mod tests {
     }
 
     #[test]
+    fn month_year_dates_default_to_first_day() {
+        assert_eq!(
+            parse_date("October 2013"),
+            Some(days_from_civil(2013, 10, 1) * 86400)
+        );
+        assert_eq!(
+            parse_date("March 2019"),
+            Some(days_from_civil(2019, 3, 1) * 86400)
+        );
+    }
+
+    #[test]
     fn timeline_orders_events() {
         let s = snap(json!([
             {"module_id": "breaches", "category": "breach", "label": "Adobe",
@@ -772,12 +780,12 @@ mod tests {
         let evts = t["events"].as_array().unwrap();
         assert_eq!(t["total"], 6);
         assert_eq!(evts.len(), 6);
-        // sorted ascending
+
         let tss: Vec<i64> = evts.iter().filter_map(|e| e["ts"].as_i64()).collect();
         let mut sorted = tss.clone();
         sorted.sort();
         assert_eq!(tss, sorted);
-        assert_eq!(evts[0]["source"], "domain.intel"); // registration 2012
+        assert_eq!(evts[0]["source"], "domain.intel");
         assert!(evts.last().unwrap()["date"]
             .as_str()
             .unwrap()
