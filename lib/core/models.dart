@@ -282,6 +282,37 @@ class CategoryInfo {
       );
 }
 
+/// One row of the persistent entity store (SQLite-backed, cross-scan).
+class EntityRecord {
+  final int id;
+  final String kind;
+  final String value;
+  final String label;
+  final int firstSeen;
+  final int lastSeen;
+  final int timesSeen;
+
+  const EntityRecord({
+    required this.id,
+    required this.kind,
+    required this.value,
+    required this.label,
+    required this.firstSeen,
+    required this.lastSeen,
+    required this.timesSeen,
+  });
+
+  factory EntityRecord.fromJson(Map<String, dynamic> j) => EntityRecord(
+        id: (j['id'] as num?)?.toInt() ?? 0,
+        kind: j['kind'] as String? ?? '',
+        value: j['value'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        firstSeen: (j['first_seen'] as num?)?.toInt() ?? 0,
+        lastSeen: (j['last_seen'] as num?)?.toInt() ?? 0,
+        timesSeen: (j['times_seen'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class ModuleInfo {
   final String id;
   final String name;

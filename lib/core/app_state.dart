@@ -24,7 +24,8 @@ class AppState extends ChangeNotifier {
   bool _darkTheme = true;
   int concurrency = 24;
   int timeoutSecs = 12;
-  String userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  String userAgent =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
   String proxy = '';
   String torMode = 'auto';
   int torSocksPort = 9050;
@@ -67,8 +68,9 @@ class AppState extends ChangeNotifier {
 
   bool get darkTheme => _darkTheme;
 
-  List<ModuleInfo> modulesFor(TargetKind kind) =>
-      modules.where((m) => m.accepts.contains(kind) && !disabledModules.contains(m.id)).toList();
+  List<ModuleInfo> modulesFor(TargetKind kind) => modules
+      .where((m) => m.accepts.contains(kind) && !disabledModules.contains(m.id))
+      .toList();
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -89,9 +91,12 @@ class AppState extends ChangeNotifier {
     pivotBudget = prefs.getInt('pivotBudget') ?? 8;
     longTail = prefs.getBool('longTail') ?? false;
     browserChecks = prefs.getBool('browserChecks') ?? false;
-    allowedCategories = (prefs.getStringList('allowedCategories') ?? []).toSet();
-    blockedCategories = (prefs.getStringList('blockedCategories') ?? []).toSet();
-    selectedCountries = (prefs.getStringList('selectedCountries') ?? []).toSet();
+    allowedCategories = (prefs.getStringList('allowedCategories') ?? [])
+        .toSet();
+    blockedCategories = (prefs.getStringList('blockedCategories') ?? [])
+        .toSet();
+    selectedCountries = (prefs.getStringList('selectedCountries') ?? [])
+        .toSet();
 
     try {
       modules = RustCore.moduleList();
@@ -109,8 +114,14 @@ class AppState extends ChangeNotifier {
       await _initScheduler();
       await _initEstore();
       unawaited(checkTor());
-      _scheduleTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshSchedule());
-      _artiTimer = Timer.periodic(const Duration(seconds: 10), (_) => _refreshArti());
+      _scheduleTimer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => _refreshSchedule(),
+      );
+      _artiTimer = Timer.periodic(
+        const Duration(seconds: 10),
+        (_) => _refreshArti(),
+      );
       if (embeddedTor) unawaited(startArti());
       try {
         ocrInfo = RustCore.ocrAvailable();
@@ -130,7 +141,10 @@ class AppState extends ChangeNotifier {
     if (!nativeReady || !embeddedTor) return;
     try {
       final base = await getApplicationSupportDirectory();
-      artiStatus = RustCore.artiStart(9051, '${base.path}${Platform.pathSeparator}arti-data');
+      artiStatus = RustCore.artiStart(
+        9051,
+        '${base.path}${Platform.pathSeparator}arti-data',
+      );
       notifyListeners();
     } catch (_) {}
   }
@@ -139,7 +153,8 @@ class AppState extends ChangeNotifier {
     if (!nativeReady) return;
     try {
       final next = RustCore.artiStatus();
-      if (next['status'] != artiStatus['status'] || next['connections'] != artiStatus['connections']) {
+      if (next['status'] != artiStatus['status'] ||
+          next['connections'] != artiStatus['connections']) {
         artiStatus = next;
         notifyListeners();
       }
@@ -149,11 +164,11 @@ class AppState extends ChangeNotifier {
   // ---------- Tor ----------
 
   String _torOptionsJson() => jsonEncode({
-        'tor_mode': torMode,
-        'tor_socks_port': torSocksPort,
-        'proxy': proxy,
-        'embedded_tor': embeddedTor,
-      });
+    'tor_mode': torMode,
+    'tor_socks_port': torSocksPort,
+    'proxy': proxy,
+    'embedded_tor': embeddedTor,
+  });
 
   Future<void> checkTor() async {
     if (!nativeReady) return;
@@ -221,10 +236,12 @@ class AppState extends ChangeNotifier {
     try {
       final next = RustCore.schedulerList();
       final sig = next
-          .map((x) =>
-              '${x.id}:${x.enabled ? 1 : 0}:${x.running ? 1 : 0}:${x.runs}:'
-              '${x.lastStatus ?? '-'}:${x.newFindings ?? -1}:${x.findingsTotal}:'
-              '${(x.dueIn / 30).floor()}')
+          .map(
+            (x) =>
+                '${x.id}:${x.enabled ? 1 : 0}:${x.running ? 1 : 0}:${x.runs}:'
+                '${x.lastStatus ?? '-'}:${x.newFindings ?? -1}:${x.findingsTotal}:'
+                '${(x.dueIn / 30).floor()}',
+          )
           .join('|');
       if (sig == _lastScheduleSig) return;
       _lastScheduleSig = sig;
@@ -268,7 +285,7 @@ class AppState extends ChangeNotifier {
     try {
       final raw = prefs.getString('plannerJournal');
       if (raw == null || raw.isEmpty) return [];
-      return ((jsonDecode(raw) as List) ?? [])
+      return ((jsonDecode(raw) as List?) ?? const [])
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
     } catch (_) {
@@ -286,28 +303,38 @@ class AppState extends ChangeNotifier {
   Future<void> _persistSchedule() async {
     if (_scheduleFile == null) return;
     try {
-      final list = scheduleEntries.map((e) => jsonEncode(e.toPersisted())).toList();
+      final list = scheduleEntries
+          .map((e) => jsonEncode(e.toPersisted()))
+          .toList();
       await _scheduleFile!.writeAsString('[${list.join(',')}]');
     } catch (_) {}
   }
 
-  Future<void> addSchedule(String query, int intervalSecs, {bool enabled = true}) async {
-    RustCore.schedulerUpsert(jsonEncode({
-      'query': query,
-      'interval_secs': intervalSecs,
-      'enabled': enabled,
-    }));
+  Future<void> addSchedule(
+    String query,
+    int intervalSecs, {
+    bool enabled = true,
+  }) async {
+    RustCore.schedulerUpsert(
+      jsonEncode({
+        'query': query,
+        'interval_secs': intervalSecs,
+        'enabled': enabled,
+      }),
+    );
     await _refreshSchedule();
     await _persistSchedule();
   }
 
   Future<void> setScheduleEnabled(ScheduleEntryInfo e, bool enabled) async {
-    RustCore.schedulerUpsert(jsonEncode({
-      'id': e.id,
-      'query': e.query,
-      'interval_secs': e.intervalSecs,
-      'enabled': enabled,
-    }));
+    RustCore.schedulerUpsert(
+      jsonEncode({
+        'id': e.id,
+        'query': e.query,
+        'interval_secs': e.intervalSecs,
+        'enabled': enabled,
+      }),
+    );
     await _refreshSchedule();
     await _persistSchedule();
   }
@@ -462,7 +489,10 @@ class AppState extends ChangeNotifier {
         RustCore.scanRelease(previousId);
       } catch (_) {}
     }
-    final enabled = modules.where((m) => !disabledModules.contains(m.id)).map((m) => m.id).toList();
+    final enabled = modules
+        .where((m) => !disabledModules.contains(m.id))
+        .map((m) => m.id)
+        .toList();
     final scanId = RustCore.scanStart(
       query,
       concurrency: concurrency,
@@ -486,7 +516,11 @@ class AppState extends ChangeNotifier {
     );
     activeScan = ScanSnapshot(
       scanId: scanId,
-      target: Target(kind: detectTargetKind(query), raw: query, normalized: query.trim().toLowerCase()),
+      target: Target(
+        kind: detectTargetKind(query),
+        raw: query,
+        normalized: query.trim().toLowerCase(),
+      ),
       status: 'running',
       startedAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       modules: const [],
@@ -495,7 +529,10 @@ class AppState extends ChangeNotifier {
     );
     notifyListeners();
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) => _poll());
+    _pollTimer = Timer.periodic(
+      const Duration(milliseconds: 400),
+      (_) => _poll(),
+    );
     _poll();
   }
 
@@ -551,7 +588,10 @@ class AppState extends ChangeNotifier {
     lastSnapshot = null;
     notifyListeners();
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) => _poll());
+    _pollTimer = Timer.periodic(
+      const Duration(milliseconds: 400),
+      (_) => _poll(),
+    );
     _poll();
   }
 
@@ -593,7 +633,11 @@ class AppState extends ChangeNotifier {
   Future<File> exportLastMarkdown([Directory? dir]) async {
     final snap = lastSnapshot ?? activeScan;
     if (snap == null) throw StateError('no scan to export');
-    return ReportExporter.exportMarkdown(snap, dir, _correlationSection(snap) ?? const CorrelationSection());
+    return ReportExporter.exportMarkdown(
+      snap,
+      dir,
+      _correlationSection(snap) ?? const CorrelationSection(),
+    );
   }
 
   Future<File> exportLastJson([Directory? dir]) async {
@@ -605,7 +649,11 @@ class AppState extends ChangeNotifier {
   Future<File> exportLastHtml([Directory? dir]) async {
     final snap = lastSnapshot ?? activeScan;
     if (snap == null) throw StateError('no scan to export');
-    return ReportExporter.exportHtml(snap, dir, _correlationSection(snap) ?? const CorrelationSection());
+    return ReportExporter.exportHtml(
+      snap,
+      dir,
+      _correlationSection(snap) ?? const CorrelationSection(),
+    );
   }
 
   Future<File> exportLastPdf([Directory? dir]) async {

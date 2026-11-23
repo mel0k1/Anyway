@@ -29,7 +29,8 @@ fn wrap(text: &str, max_chars: usize) -> Vec<String> {
         }
         let mut current = String::new();
         for word in paragraph.split(' ') {
-            if current.chars().count() + word.chars().count() + 1 > max_chars && !current.is_empty() {
+            if current.chars().count() + word.chars().count() + 1 > max_chars && !current.is_empty()
+            {
                 out.push(current.clone());
                 current.clear();
             }
@@ -58,9 +59,7 @@ fn wrap(text: &str, max_chars: usize) -> Vec<String> {
 
 fn sanitize(text: &str) -> String {
     // control characters break PDF text streams
-    text.chars()
-        .filter(|c| !c.is_control())
-        .collect::<String>()
+    text.chars().filter(|c| !c.is_control()).collect::<String>()
 }
 
 fn header_color() -> Color {
@@ -82,8 +81,8 @@ fn body_color() -> Color {
 }
 
 pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
-    let font = ParsedFont::from_bytes(FONT, 0, &mut Vec::new())
-        .ok_or("embedded font failed to parse")?;
+    let font =
+        ParsedFont::from_bytes(FONT, 0, &mut Vec::new()).ok_or("embedded font failed to parse")?;
     let mut doc = PdfDocument::new("Anyway report");
     let font_id = doc.add_font(&font);
 
@@ -94,10 +93,26 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
     let started = snapshot["started_at"].as_i64().unwrap_or(0);
     let started_str = chrono_date(started);
 
-    lines.push(Line { size: 20.0, bold_gap: true, text: format!("Anyway report: {target}") });
-    lines.push(Line { size: 10.0, bold_gap: false, text: format!("Type: {kind} · status: {status} · started {started_str}") });
-    lines.push(Line { size: 10.0, bold_gap: false, text: format!("Scan id: {}", snapshot["scan_id"].as_str().unwrap_or("-")) });
-    lines.push(Line { size: 10.0, bold_gap: true, text: String::new() });
+    lines.push(Line {
+        size: 20.0,
+        bold_gap: true,
+        text: format!("Anyway report: {target}"),
+    });
+    lines.push(Line {
+        size: 10.0,
+        bold_gap: false,
+        text: format!("Type: {kind} · status: {status} · started {started_str}"),
+    });
+    lines.push(Line {
+        size: 10.0,
+        bold_gap: false,
+        text: format!("Scan id: {}", snapshot["scan_id"].as_str().unwrap_or("-")),
+    });
+    lines.push(Line {
+        size: 10.0,
+        bold_gap: true,
+        text: String::new(),
+    });
 
     // findings grouped by module
     let mut modules: Vec<(String, Vec<&Value>)> = Vec::new();
@@ -110,9 +125,27 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
             }
         }
     }
-    lines.push(Line { size: 14.0, bold_gap: true, text: format!("Findings ({})", snapshot["findings"].as_array().map(|a| a.len()).unwrap_or(0)) });
+    lines.push(Line {
+        size: 14.0,
+        bold_gap: true,
+        text: format!(
+            "Findings ({})",
+            snapshot["findings"]
+                .as_array()
+                .map(|a| a.len())
+                .unwrap_or(0)
+        ),
+    });
     for (module, items) in &modules {
-        lines.push(Line { size: 11.5, bold_gap: true, text: format!("{module} — {} finding{}", items.len(), if items.len() == 1 { "" } else { "s" }) });
+        lines.push(Line {
+            size: 11.5,
+            bold_gap: true,
+            text: format!(
+                "{module} — {} finding{}",
+                items.len(),
+                if items.len() == 1 { "" } else { "s" }
+            ),
+        });
         for f in items.iter().take(250) {
             let label = f["label"].as_str().unwrap_or("?");
             let value = f["value"].as_str().unwrap_or("");
@@ -120,22 +153,44 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
             let text = sanitize(&format!("{label}: {value} [{conf}]"));
             for (i, piece) in wrap(&text, 100).into_iter().enumerate() {
                 let prefix = if i == 0 { "" } else { "    " };
-                lines.push(Line { size: 9.0, bold_gap: false, text: format!("{prefix}{piece}") });
+                lines.push(Line {
+                    size: 9.0,
+                    bold_gap: false,
+                    text: format!("{prefix}{piece}"),
+                });
             }
         }
     }
 
     // correlation clusters
     let report = crate::resolve::resolve(snapshot, 45);
-    let clusters = report.to_json(45)["clusters"].as_array().cloned().unwrap_or_default();
-    let linked: Vec<&Value> = clusters.iter().filter(|c| c["size"].as_u64().unwrap_or(0) > 1).collect();
+    let clusters = report.to_json(45)["clusters"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let linked: Vec<&Value> = clusters
+        .iter()
+        .filter(|c| c["size"].as_u64().unwrap_or(0) > 1)
+        .collect();
     if !linked.is_empty() {
-        lines.push(Line { size: 14.0, bold_gap: true, text: String::new() });
-        lines.push(Line { size: 14.0, bold_gap: true, text: format!("Correlation clusters ({})", linked.len()) });
+        lines.push(Line {
+            size: 14.0,
+            bold_gap: true,
+            text: String::new(),
+        });
+        lines.push(Line {
+            size: 14.0,
+            bold_gap: true,
+            text: format!("Correlation clusters ({})", linked.len()),
+        });
         for c in linked.iter().take(30) {
             let label = c["label"].as_str().unwrap_or("?");
             let size = c["size"].as_u64().unwrap_or(0);
-            lines.push(Line { size: 10.5, bold_gap: true, text: format!("· {label} ({size} linked identities)") });
+            lines.push(Line {
+                size: 10.5,
+                bold_gap: true,
+                text: format!("· {label} ({size} linked identities)"),
+            });
             if let Some(members) = c["members"].as_array() {
                 for m in members.iter().take(10) {
                     let platform = m["platform"].as_str().unwrap_or("?");
@@ -147,7 +202,11 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
                         format!("    {platform}: {handle} — {url}")
                     };
                     for piece in wrap(&sanitize(&text), 96) {
-                        lines.push(Line { size: 9.0, bold_gap: false, text: piece });
+                        lines.push(Line {
+                            size: 9.0,
+                            bold_gap: false,
+                            text: piece,
+                        });
                     }
                 }
             }
@@ -155,10 +214,21 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
     }
 
     // timeline
-    let timeline = crate::resolve::build_timeline(snapshot)["events"].as_array().cloned().unwrap_or_default();
+    let timeline = crate::resolve::build_timeline(snapshot)["events"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
     if !timeline.is_empty() {
-        lines.push(Line { size: 14.0, bold_gap: true, text: String::new() });
-        lines.push(Line { size: 14.0, bold_gap: true, text: format!("Timeline ({})", timeline.len()) });
+        lines.push(Line {
+            size: 14.0,
+            bold_gap: true,
+            text: String::new(),
+        });
+        lines.push(Line {
+            size: 14.0,
+            bold_gap: true,
+            text: format!("Timeline ({})", timeline.len()),
+        });
         for e in timeline.iter().take(120) {
             let date = e["date"].as_str().unwrap_or("?");
             let label = e["label"].as_str().unwrap_or("");
@@ -166,7 +236,11 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
             let text = sanitize(&format!("{date} — {label} [{kind}]"));
             for (i, piece) in wrap(&text, 100).into_iter().enumerate() {
                 let prefix = if i == 0 { "" } else { "    " };
-                lines.push(Line { size: 9.0, bold_gap: false, text: format!("{prefix}{piece}") });
+                lines.push(Line {
+                    size: 9.0,
+                    bold_gap: false,
+                    text: format!("{prefix}{piece}"),
+                });
             }
         }
     }
@@ -181,16 +255,29 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
     macro_rules! flush_page {
         () => {{
             if !ops.is_empty() {
-                pages.push(PdfPage::new(Mm(PAGE_W_MM), Mm(PAGE_H_MM), std::mem::take(&mut ops)));
+                pages.push(PdfPage::new(
+                    Mm(PAGE_W_MM),
+                    Mm(PAGE_H_MM),
+                    std::mem::take(&mut ops),
+                ));
                 y = PAGE_H_MM - MARGIN_MM;
                 page_first = true;
+            }
+        }};
+        (last) => {{
+            if !ops.is_empty() {
+                pages.push(PdfPage::new(
+                    Mm(PAGE_W_MM),
+                    Mm(PAGE_H_MM),
+                    std::mem::take(&mut ops),
+                ));
             }
         }};
     }
 
     for line in &lines {
         let lh_mm = line.size * mm_per_pt * 1.45;
-        if y < BOTTOM_MM + lh_mm || (page_first && pages.is_empty() && ops.is_empty() && false) {
+        if y < BOTTOM_MM + lh_mm {
             ops.push(Op::EndTextSection);
             flush_page!();
         }
@@ -205,9 +292,15 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
             font: font_id.clone(),
             size: Pt(line.size),
         });
-        ops.push(Op::SetLineHeight { lh: Pt(line.size * 1.45) });
+        ops.push(Op::SetLineHeight {
+            lh: Pt(line.size * 1.45),
+        });
         ops.push(Op::SetFillColor {
-            col: if line.size >= 14.0 { header_color() } else { body_color() },
+            col: if line.size >= 14.0 {
+                header_color()
+            } else {
+                body_color()
+            },
         });
         ops.push(Op::WriteText {
             font: font_id.clone(),
@@ -219,13 +312,19 @@ pub fn generate(snapshot: &Value) -> Result<Vec<u8>, String> {
         }
     }
     ops.push(Op::EndTextSection);
-    flush_page!();
+    flush_page!(last);
 
     if pages.is_empty() {
-        pages.push(PdfPage::new(Mm(PAGE_W_MM), Mm(PAGE_H_MM), vec![Op::StartTextSection, Op::EndTextSection]));
+        pages.push(PdfPage::new(
+            Mm(PAGE_W_MM),
+            Mm(PAGE_H_MM),
+            vec![Op::StartTextSection, Op::EndTextSection],
+        ));
     }
     let warnings = &mut Vec::new();
-    let bytes = doc.with_pages(pages).save(&PdfSaveOptions::default(), warnings);
+    let bytes = doc
+        .with_pages(pages)
+        .save(&PdfSaveOptions::default(), warnings);
     Ok(bytes)
 }
 
@@ -247,7 +346,8 @@ fn chrono_date(ts: i64) -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     let rem = secs % 86400;
-    format!("{y:04}-{m:02}-{d:02} {:02}:{02}:{:02}", rem / 3600, (rem % 3600) / 60, rem % 60)
+    let (h, mi, s) = (rem / 3600, (rem % 3600) / 60, rem % 60);
+    format!("{y:04}-{m:02}-{d:02} {h:02}:{mi:02}:{s:02}")
 }
 
 #[cfg(test)]

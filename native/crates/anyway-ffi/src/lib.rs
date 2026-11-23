@@ -203,10 +203,7 @@ pub unsafe extern "C" fn anyway_tor_check(options_json: *const c_char) -> *mut c
 /// `data_dir` is a writable directory for Tor state; both are remembered for
 /// the lifetime of the process. Idempotent.
 #[no_mangle]
-pub unsafe extern "C" fn anyway_arti_start(
-    port: u32,
-    data_dir: *const c_char,
-) -> *mut c_char {
+pub unsafe extern "C" fn anyway_arti_start(port: u32, data_dir: *const c_char) -> *mut c_char {
     let dir = read_str(data_dir);
     let _guard = runtime().enter();
     to_ptr(anyway_core::arti::start(
@@ -218,6 +215,30 @@ pub unsafe extern "C" fn anyway_arti_start(
 #[no_mangle]
 pub unsafe extern "C" fn anyway_arti_status() -> *mut c_char {
     to_ptr(anyway_core::arti::status())
+}
+
+// ---------- Reporting ----------
+
+#[no_mangle]
+pub unsafe extern "C" fn anyway_report_pdf(payload: *const c_char) -> *mut c_char {
+    let body = read_str(payload);
+    let v: serde_json::Value = match serde_json::from_str(&body) {
+        Ok(v) => v,
+        Err(e) => return err_ptr(&format!("bad payload: {e}")),
+    };
+    match anyway_core::report::generate(&v) {
+        Ok(bytes) => to_ptr(json!({
+            "ok": true,
+            "pdf_b64": engine_b64(&bytes),
+            "bytes": bytes.len(),
+        })),
+        Err(e) => err_ptr(&e),
+    }
+}
+
+fn engine_b64(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
 // ---------- Imaging ----------
@@ -372,7 +393,9 @@ pub unsafe extern "C" fn anyway_leaks_search(payload: *const c_char) -> *mut c_c
     let limit = v["limit"].as_u64().unwrap_or(200) as usize;
     let reveal = v["reveal"].as_bool().unwrap_or(false);
     let field = v["field"].as_str().map(String::from);
-    leaks_task(move || anyway_core::leaks::search(&db_path, &query, limit, reveal, field.as_deref()))
+    leaks_task(move || {
+        anyway_core::leaks::search(&db_path, &query, limit, reveal, field.as_deref())
+    })
 }
 
 #[no_mangle]

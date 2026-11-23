@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
+import '../../core/rust_core.dart';
 
 /// Cross-scan entity index: every finished scan feeds findings here, so
 /// identities can be tracked over time and compared between scans.
@@ -71,15 +72,16 @@ class _EntitiesScreenState extends State<EntitiesScreen> {
       context: context,
       showDragHandle: true,
       builder: (context) {
-        final observations =
-            ((detail?['observations'] as List?) ?? const []).cast<Map>();
+        final observations = ((detail?['observations'] as List?) ?? const [])
+            .cast<Map>();
         return SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             children: [
               SelectableText(
                 r.value,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -92,23 +94,37 @@ class _EntitiesScreenState extends State<EntitiesScreen> {
               const SizedBox(height: 12),
               Text(
                 'first seen ${_fmt(r.firstSeen)} · last seen ${_fmt(r.lastSeen)} · seen ${r.timesSeen}× in ${observations.length} scan${observations.length == 1 ? '' : 's'}',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const Divider(height: 28),
-              Text('Scan history', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'Scan history',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               const SizedBox(height: 8),
               for (final o in observations)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   leading: const Icon(Icons.schedule, size: 18),
-                  title: Text('${o['scan_id']}', style: const TextStyle(fontSize: 13)),
-                  subtitle: Text('seen ${_fmt((o['seen_at'] as num?)?.toInt() ?? 0)}',
-                      style: const TextStyle(fontSize: 12)),
+                  title: Text(
+                    '${o['scan_id']}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    'seen ${_fmt((o['seen_at'] as num?)?.toInt() ?? 0)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
               if (observations.isEmpty)
-                Text('No scan observations recorded',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                Text(
+                  'No scan observations recorded',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
             ],
           ),
         );
@@ -138,7 +154,12 @@ class _EntitiesScreenState extends State<EntitiesScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Text('Entities', style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                child: Text(
+                  'Entities',
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               if (_stats != null)
                 Text(
@@ -206,42 +227,44 @@ class _EntitiesScreenState extends State<EntitiesScreen> {
         ),
         Expanded(
           child: _error != null
-              ? Center(child: Text(_error!, style: TextStyle(color: scheme.error)))
+              ? Center(
+                  child: Text(_error!, style: TextStyle(color: scheme.error)),
+                )
               : _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _rows.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No entities yet — finish a scan and its findings will be indexed here',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: scheme.onSurfaceVariant),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
-                          itemCount: _rows.length,
-                          itemBuilder: (context, i) {
-                            final r = _rows[i];
-                            return Card(
-                              child: ListTile(
-                                onTap: () => _openEntity(r),
-                                title: Text(
-                                  r.value,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13.5),
-                                ),
-                                subtitle: Text(
-                                  '${r.kind}${r.label.isEmpty ? '' : ' · ${r.label}'} · seen ${r.timesSeen}× · last ${_fmt(r.lastSeen)}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                trailing: const Icon(Icons.chevron_right, size: 18),
-                              ),
-                            );
-                          },
+              ? const Center(child: CircularProgressIndicator())
+              : _rows.isEmpty
+              ? Center(
+                  child: Text(
+                    'No entities yet — finish a scan and its findings will be indexed here',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
+                  itemCount: _rows.length,
+                  itemBuilder: (context, i) {
+                    final r = _rows[i];
+                    return Card(
+                      child: ListTile(
+                        onTap: () => _openEntity(r),
+                        title: Text(
+                          r.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13.5),
                         ),
+                        subtitle: Text(
+                          '${r.kind}${r.label.isEmpty ? '' : ' · ${r.label}'} · seen ${r.timesSeen}× · last ${_fmt(r.lastSeen)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, size: 18),
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
